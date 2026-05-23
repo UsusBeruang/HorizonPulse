@@ -1,6 +1,7 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media.Media3D;
+using System.Windows.Media;
 using System.Windows.Threading;
 using HorizonPulse.Services;
 using HorizonPulse.Telemetry.Runtime;
@@ -13,13 +14,9 @@ namespace HorizonPulse
         private readonly RuntimeTelemetryState _runtimeState;
         
         // UI throttling optimized for 200 FPS telemetry
-        // At 200 FPS, packets arrive every 5ms. We update UI at 60 FPS (16.67ms)
-        // This processes ~3 packets per UI update, balancing responsiveness and performance
         private const int UiUpdateIntervalMs = 16; // ~60 FPS for UI
         private readonly DispatcherTimer _uiUpdateTimer;
         private bool _pendingUiUpdate;
-        
-        // Track high-priority events that should trigger immediate UI updates
         private bool _pendingCollisionEvent;
         
         // Cached UI element references to avoid FindName calls
@@ -29,14 +26,12 @@ namespace HorizonPulse
         private Border _throttleBarParent;
         private Border _brakeBarParent;
         
-        // 3D Car orientation transforms
-        private RotateTransform3D _yawTransform;
-        private RotateTransform3D _pitchTransform;
-        private RotateTransform3D _rollTransform;
+        // Steering wheel visual transform
+        private RotateTransform _steeringWheelTransform;
         
         // Cached brushes to avoid allocation on every update
-        private readonly System.Windows.Media.SolidColorBrush _greenBrush;
-        private readonly System.Windows.Media.SolidColorBrush _redBrush;
+        private readonly SolidColorBrush _greenBrush;
+        private readonly SolidColorBrush _redBrush;
 
         public MainWindow()
         {
@@ -46,8 +41,8 @@ namespace HorizonPulse
             _runtimeState = new RuntimeTelemetryState();
             
             // Initialize cached brushes
-            _greenBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
-            _redBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
+            _greenBrush = new SolidColorBrush(Colors.Green);
+            _redBrush = new SolidColorBrush(Colors.Red);
             _greenBrush.Freeze();
             _redBrush.Freeze();
             
@@ -59,12 +54,10 @@ namespace HorizonPulse
             if (_throttleBar?.Parent is Border tbParent) _throttleBarParent = tbParent;
             if (_brakeBar?.Parent is Border bbParent) _brakeBarParent = bbParent;
             
-            // Cache 3D transform references for car orientation visualization
-            _yawTransform = FindName("YawTransform") as RotateTransform3D;
-            _pitchTransform = FindName("PitchTransform") as RotateTransform3D;
-            _rollTransform = FindName("RollTransform") as RotateTransform3D;
+            // Cache Transform for the new steering wheel
+            _steeringWheelTransform = FindName("SteeringWheelTransform") as RotateTransform;
             
-            // Setup throttled UI update timer optimized for 200 FPS telemetry
+            // Setup throttled UI update timer
             _uiUpdateTimer = new DispatcherTimer
             {
                 Interval = TimeSpan.FromMilliseconds(UiUpdateIntervalMs)
@@ -73,7 +66,6 @@ namespace HorizonPulse
             {
                 if (_pendingCollisionEvent)
                 {
-                    // Collision events get immediate priority - process even if no regular update pending
                     _pendingCollisionEvent = false;
                     UpdateUI();
                 }
@@ -85,20 +77,16 @@ namespace HorizonPulse
             };
             _uiUpdateTimer.Start();
             
-            // Subscribe to parsed telemetry events from the ingestion service
+            // Subscribe to parsed telemetry events
             _telemetryReceiver.Ingestion.TelemetryReceived += OnTelemetryReceived;
             _telemetryReceiver.Start(54321);
             
-            // Initialize UI with default values
             UpdateUI();
         }
 
         private void OnTelemetryReceived(ForzaHorizon6.Models.Runtime.TelemetryData telemetry)
         {
-            // Update runtime state (thread-safe)
             _runtimeState.Update(telemetry);
-            
-            // Mark UI update as pending - will be processed by timer
             _pendingUiUpdate = true;
         }
 
@@ -112,62 +100,53 @@ namespace HorizonPulse
             GearText.Text = $"{state.Gear}";
             LapNumberText.Text = $"{state.LapNumber}";
             
-            // Inputs Card - bars and text
+            // Inputs Card - Bars and Text
             ThrottleText.Text = $"{state.Throttle:P1}";
             BrakeTextInput.Text = $"{state.BrakeInput:P1}";
-            SteerText.Text = $"{state.Input.Steer}";
             
-            // Update throttle bar width using cached reference
+            // Update Throttle/Brake
             if (_throttleBar != null && _throttleBarParent != null)
-            {
                 _throttleBar.Width = _throttleBarParent.ActualWidth * state.Throttle;
-            }
-            
-            // Update brake bar width using cached reference
+                
             if (_brakeBar != null && _brakeBarParent != null)
-            {
                 _brakeBar.Width = _brakeBarParent.ActualWidth * state.BrakeInput;
-            }
             
-            // Update steer bar position using cached reference - smooth visualization from -127 to 0 to 127
+            // Update horizontal Steer Bar
             if (_steerBar != null && _steerBar.Parent is Grid steerGrid)
             {
                 var steerNormalized = state.Input.Steer / 127f;
                 var gridWidth = steerGrid.ActualWidth;
                 var barWidth = _steerBar.Width;
                 
-                // Calculate position: center is 0, full left (-127) is at left edge, full right (127) is at right edge
                 var centerOffset = (gridWidth - barWidth) / 2;
                 var newMargin = new Thickness(centerOffset * steerNormalized + centerOffset - centerOffset, 0, 0, 0);
                 _steerBar.Margin = newMargin;
                 _steerBar.HorizontalAlignment = HorizontalAlignment.Left;
             }
             
-            // Car Orientation Card - Yaw, Pitch, Roll (convert radians to degrees)
-            var yawDeg = RadToDeg(state.Motion.Yaw);
-            var pitchDeg = RadToDeg(state.Motion.Pitch);
-            var rollDeg = RadToDeg(state.Motion.Roll);
+            // ── NEW STEERING WHEEL LOGIC ──
+            var rawSteer = state.Input.Steer; 
             
-            // Update numerical display
-            YawText.Text = $"{yawDeg:F1}°";
-            PitchText.Text = $"{pitchDeg:F1}°";
-            RollText.Text = $"{rollDeg:F1}°";
+            // Map the raw -127 to 127 input into a visual angle (-180 to 180 degrees)
+            double visualAngle = (rawSteer / 127.0) * 180.0;
             
-            // Update 3D car model orientation
-            UpdateCarOrientation(yawDeg, pitchDeg, rollDeg);
+            // Update text readouts
+            if (RawSteerText != null) RawSteerText.Text = $"{rawSteer}";
+            if (SteerAngleText != null) SteerAngleText.Text = $"{visualAngle:F1}°";
             
-            // Timing Card - Format as hhhh:mm:ss.SSS
+            // Rotate the graphic
+            if (_steeringWheelTransform != null)
+                _steeringWheelTransform.Angle = visualAngle;
+            
+            // Timing Card
             RaceTimeText.Text = FormatTimeHMS(state.CurrentRaceTime);
             CurrentLapTimeText.Text = FormatTimeHMS(state.RaceTiming.CurrentLap);
             
-            // Shift cue indicators based on RPM and Speed
+            // Cues and Status
             UpdateShiftCues(state);
-            
-            // Update status using cached brushes
             StatusText.Text = state.IsRaceOn ? "Racing" : "Not Racing";
             StatusText.Foreground = state.IsRaceOn ? _greenBrush : _redBrush;
             
-            // Populate inspector panel with extended telemetry
             UpdateInspectorPanel(state);
         }
 
@@ -179,17 +158,15 @@ namespace HorizonPulse
             var gear = state.Gear;
             var speed = state.SpeedKph;
             
-            // Shift up cue: when RPM is near redline (>90% of max) and not in neutral
             var shiftUpThreshold = maxRpm * 0.92f;
             var shouldShiftUp = gear > 0 && rpm >= shiftUpThreshold;
             
-            // Shift down cue: when RPM drops below optimal range (<35% between idle and max)
             var rpmRange = maxRpm - idleRpm;
             var shiftDownThreshold = idleRpm + rpmRange * 0.35f;
             var shouldShiftDown = gear > 1 && rpm <= shiftDownThreshold && speed > 5f;
             
-            ShiftUpCue.Visibility = shouldShiftUp ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
-            ShiftDownCue.Visibility = shouldShiftDown ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            ShiftUpCue.Visibility = shouldShiftUp ? Visibility.Visible : Visibility.Collapsed;
+            ShiftDownCue.Visibility = shouldShiftDown ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void UpdateInspectorPanel(RuntimeTelemetryState state)
@@ -197,49 +174,37 @@ namespace HorizonPulse
             var panel = InspectorPanel;
             if (panel == null) return;
             
-            // Skip full rebuild if no changes - inspector data changes less frequently
-            // Only rebuild when there's significant change (e.g., collision, gear change)
-            // For now, we keep the rebuild but it will be throttled by the UI timer
-            
             panel.Children.Clear();
             
-            // Add suspension travel
             AddInspectorRow(panel, "Susp FL", $"{state.Suspension.NormalizedFrontLeft:P0}");
             AddInspectorRow(panel, "Susp FR", $"{state.Suspension.NormalizedFrontRight:P0}");
             AddInspectorRow(panel, "Susp RL", $"{state.Suspension.NormalizedRearLeft:P0}");
             AddInspectorRow(panel, "Susp RR", $"{state.Suspension.NormalizedRearRight:P0}");
             AddInspectorDivider(panel);
             
-            // Add wheel slip
             AddInspectorRow(panel, "Slip FL", $"{state.Wheel.SlipRatioFrontLeft:F2}");
             AddInspectorRow(panel, "Slip FR", $"{state.Wheel.SlipRatioFrontRight:F2}");
             AddInspectorRow(panel, "Slip RL", $"{state.Wheel.SlipRatioRearLeft:F2}");
             AddInspectorRow(panel, "Slip RR", $"{state.Wheel.SlipRatioRearRight:F2}");
             AddInspectorDivider(panel);
             
-            // Add G-force
             AddInspectorRow(panel, "G-Force", $"{state.GForce:F2} G");
             
-            // Add brake/clutch/handbrake
             AddInspectorRow(panel, "Clutch", $"{state.Input.ClutchPercent:P0}");
             AddInspectorRow(panel, "Handbrake", $"{state.Input.HandBrakePercent:P0}");
             AddInspectorDivider(panel);
             
-            // Add drivetrain info
             AddInspectorRow(panel, "Drivetrain", state.Misc.DrivetrainName);
             AddInspectorRow(panel, "Class", state.Misc.CarClassName);
             AddInspectorRow(panel, "PI", $"{state.Misc.CarPerformanceIndex}");
             AddInspectorDivider(panel);
             
-            // Add race position
             AddInspectorRow(panel, "Position", $"P{state.RaceTiming.RacePosition}");
             AddInspectorRow(panel, "Best Lap", FormatLapTime(state.RaceTiming.BestLap));
             
-            // Add fuel/boost
             AddInspectorRow(panel, "Fuel", $"{state.Environment.FuelPercent:P0}");
             AddInspectorRow(panel, "Boost", $"{state.Environment.Boost:F1} PSI");
             
-            // Add damage indicator
             if (state.Damage.HasCollision)
             {
                 AddInspectorDivider(panel);
@@ -247,35 +212,35 @@ namespace HorizonPulse
             }
         }
 
-        private void AddInspectorRow(System.Windows.Controls.StackPanel panel, string label, string value, string colorOverride = null)
+        private void AddInspectorRow(StackPanel panel, string label, string value, string colorOverride = null)
         {
-            var grid = new System.Windows.Controls.Grid();
-            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new System.Windows.GridLength(1, System.Windows.GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = System.Windows.GridLength.Auto });
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             
-            var labelBlock = new System.Windows.Controls.TextBlock
+            var labelBlock = new TextBlock
             {
                 Text = label,
-                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontFamily = new FontFamily("Consolas"),
                 FontSize = 10,
-                Foreground = System.Windows.Media.Brushes.Gray,
-                VerticalAlignment = System.Windows.VerticalAlignment.Center
+                Foreground = Brushes.Gray,
+                VerticalAlignment = VerticalAlignment.Center
             };
             
-            var valueBlock = new System.Windows.Controls.TextBlock
+            var valueBlock = new TextBlock
             {
                 Text = value,
-                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontFamily = new FontFamily("Consolas"),
                 FontSize = 13,
-                FontWeight = System.Windows.FontWeights.Bold,
+                FontWeight = FontWeights.Bold,
                 Foreground = colorOverride != null 
-                    ? new System.Windows.Media.SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(colorOverride))
-                    : System.Windows.Media.Brushes.White,
-                VerticalAlignment = System.Windows.VerticalAlignment.Center
+                    ? new SolidColorBrush((Color)ColorConverter.ConvertFromString(colorOverride))
+                    : Brushes.White,
+                VerticalAlignment = VerticalAlignment.Center
             };
             
-            System.Windows.Controls.Grid.SetColumn(labelBlock, 0);
-            System.Windows.Controls.Grid.SetColumn(valueBlock, 1);
+            Grid.SetColumn(labelBlock, 0);
+            Grid.SetColumn(valueBlock, 1);
             
             grid.Children.Add(labelBlock);
             grid.Children.Add(valueBlock);
@@ -284,11 +249,11 @@ namespace HorizonPulse
             panel.Children.Add(grid);
         }
 
-        private void AddInspectorDivider(System.Windows.Controls.StackPanel panel)
+        private void AddInspectorDivider(StackPanel panel)
         {
             var line = new System.Windows.Shapes.Rectangle
             {
-                Fill = System.Windows.Media.Brushes.DarkGray,
+                Fill = Brushes.DarkGray,
                 Height = 1,
                 Margin = new Thickness(0, 8, 0, 8)
             };
@@ -303,40 +268,15 @@ namespace HorizonPulse
             return $"{mins}:{secs:F3}";
         }
 
+        // Updated time formatter based on your provided logic
         private string FormatTimeHMS(float totalSeconds)
         {
-            if (totalSeconds <= 0 || float.IsNaN(totalSeconds))
+            if (totalSeconds <= 0 || float.IsNaN(totalSeconds) || float.IsInfinity(totalSeconds))
                 return "----:--:--.---";
-            
-            var hours = (int)(totalSeconds / 3600);
-            var minutes = (int)((totalSeconds % 3600) / 60);
-            var seconds = totalSeconds % 60;
-            
-            return $"{hours:D4}:{minutes:D2}:{seconds:06.3f}";
-        }
 
-        private static double RadToDeg(float radians) => radians * 180.0 / Math.PI;
+            var time = TimeSpan.FromSeconds(totalSeconds);
 
-        private void UpdateCarOrientation(double yaw, double pitch, double roll)
-        {
-            // Update 3D transforms for the car model
-            // Yaw: rotation around Y axis (left/right turning)
-            if (_yawTransform?.Rotation is AxisAngleRotation3D yawRotation)
-            {
-                yawRotation.Angle = yaw;
-            }
-            
-            // Pitch: rotation around X axis (nose up/down)
-            if (_pitchTransform?.Rotation is AxisAngleRotation3D pitchRotation)
-            {
-                pitchRotation.Angle = pitch;
-            }
-            
-            // Roll: rotation around Z axis (tilting left/right)
-            if (_rollTransform?.Rotation is AxisAngleRotation3D rollRotation)
-            {
-                rollRotation.Angle = roll;
-            }
+            return $"{(int)time.TotalHours:D4}:{time.Minutes:D2}:{time.Seconds:D2}.{time.Milliseconds:D3}";
         }
 
         protected override void OnClosed(EventArgs e)
@@ -344,6 +284,28 @@ namespace HorizonPulse
             _uiUpdateTimer?.Stop();
             _telemetryReceiver.Stop();
             base.OnClosed(e);
+        }
+    
+        private void InspectorToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (InspectorToggle.IsChecked == true)
+            {
+                // Expand the Inspector (Restore original 2* / 14 / 3* layout)
+                LeftColumn.Width = new GridLength(2, GridUnitType.Star);
+                SpacerColumn.Width = new GridLength(14);
+                InspectorColumn.Width = new GridLength(3, GridUnitType.Star);
+        
+                InspectorContainer.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                // Collapse the Inspector (Left panel takes 100% space)
+                LeftColumn.Width = new GridLength(1, GridUnitType.Star);
+                SpacerColumn.Width = new GridLength(0);
+                InspectorColumn.Width = new GridLength(0);
+        
+                InspectorContainer.Visibility = Visibility.Collapsed;
+            }
         }
     }
 }
