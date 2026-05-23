@@ -1,26 +1,33 @@
-# Build output
+```
+# Build artifacts
 bin/
 obj/
+*.dll
+*.exe
+*.pdb
+*.config
+
+# Dependencies
 packages/
-
-# IDE / Editor
-.vs/
-.idea/
-riderModule.iml
-
-# Rider / ReSharper
-_ReSharper*/
-_ReSharper.Caches/
-
-# User-specific files
-*.user
-*.suo
+node_modules/
+*.nupkg
 
 # Logs
 *.log
 
-# Test output
-TestResults/
+# User-specific files
+.vs/
+*.userprefs
+*.suo
+*.user
+*.sln.docstates
 
-# AI / Assistant tooling
-.aider*
+# Environment specific
+.env
+.env.local
+*.env.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```
