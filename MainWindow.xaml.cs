@@ -5,6 +5,8 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using HorizonPulse.Services;
 using HorizonPulse.Telemetry.Runtime;
+using HorizonPulse.Automation.Services;
+using HorizonPulse.Automation.Models;
 
 namespace HorizonPulse
 {
@@ -12,6 +14,7 @@ namespace HorizonPulse
     {
         private readonly TelemetryReceiver _telemetryReceiver;
         private readonly RuntimeTelemetryState _runtimeState;
+        private readonly AutomationService _automationService;
         
         // UI throttling optimized for 200 FPS telemetry
         private const int UiUpdateIntervalMs = 16; // ~60 FPS for UI
@@ -25,6 +28,10 @@ namespace HorizonPulse
         private Border _steerBar;
         private Border _throttleBarParent;
         private Border _brakeBarParent;
+        private Border _virtualThrottleBar;
+        private Border _virtualThrottleBarParent;
+        private Border _automationBrakeBar;
+        private Border _automationBrakeBarParent;
         
         // Steering wheel visual transform
         private RotateTransform _steeringWheelTransform;
@@ -32,6 +39,7 @@ namespace HorizonPulse
         // Cached brushes to avoid allocation on every update
         private readonly SolidColorBrush _greenBrush;
         private readonly SolidColorBrush _redBrush;
+        private readonly SolidColorBrush _amberBrush;
 
         public MainWindow()
         {
@@ -39,23 +47,33 @@ namespace HorizonPulse
             
             _telemetryReceiver = new TelemetryReceiver();
             _runtimeState = new RuntimeTelemetryState();
+            _automationService = new AutomationService(new AutomationSettings());
             
             // Initialize cached brushes
             _greenBrush = new SolidColorBrush(Colors.Green);
             _redBrush = new SolidColorBrush(Colors.Red);
+            _amberBrush = new SolidColorBrush(Color.FromRgb(255, 179, 0));
             _greenBrush.Freeze();
             _redBrush.Freeze();
+            _amberBrush.Freeze();
             
             // Cache UI element references
             _throttleBar = FindName("_ThrottleBar") as Border;
             _brakeBar = FindName("_BrakeBar") as Border;
             _steerBar = FindName("_SteerBar") as Border;
+            _virtualThrottleBar = FindName("VirtualThrottleBar") as Border;
+            _automationBrakeBar = FindName("AutomationBrakeBar") as Border;
             
             if (_throttleBar?.Parent is Border tbParent) _throttleBarParent = tbParent;
             if (_brakeBar?.Parent is Border bbParent) _brakeBarParent = bbParent;
+            if (_virtualThrottleBar?.Parent is Border vtbParent) _virtualThrottleBarParent = vtbParent;
+            if (_automationBrakeBar?.Parent is Border abbParent) _automationBrakeBarParent = abbParent;
             
             // Cache Transform for the new steering wheel
             _steeringWheelTransform = FindName("SteeringWheelTransform") as RotateTransform;
+            
+            // Initialize automation UI state
+            UpdateAutomationUI();
             
             // Setup throttled UI update timer
             _uiUpdateTimer = new DispatcherTimer
@@ -81,12 +99,19 @@ namespace HorizonPulse
             _telemetryReceiver.Ingestion.TelemetryReceived += OnTelemetryReceived;
             _telemetryReceiver.Start(54321);
             
+            // Start automation service
+            _automationService.Start();
+            
             UpdateUI();
         }
 
         private void OnTelemetryReceived(ForzaHorizon6.Models.Runtime.TelemetryData telemetry)
         {
             _runtimeState.Update(telemetry);
+            
+            // Update automation with telemetry
+            _automationService.UpdateFromTelemetry(_runtimeState);
+            
             _pendingUiUpdate = true;
         }
 
@@ -146,6 +171,9 @@ namespace HorizonPulse
             UpdateShiftCues(state);
             StatusText.Text = state.IsRaceOn ? "Racing" : "Not Racing";
             StatusText.Foreground = state.IsRaceOn ? _greenBrush : _redBrush;
+            
+            // Update Automation UI
+            UpdateAutomationDisplay();
             
             UpdateInspectorPanel(state);
         }
@@ -283,6 +311,7 @@ namespace HorizonPulse
         {
             _uiUpdateTimer?.Stop();
             _telemetryReceiver.Stop();
+            _automationService.Dispose();
             base.OnClosed(e);
         }
     
@@ -306,6 +335,120 @@ namespace HorizonPulse
         
                 InspectorContainer.Visibility = Visibility.Collapsed;
             }
+        }
+
+        // ═══════════════════════════════════════════
+        // AUTOMATION UI METHODS
+        // ═══════════════════════════════════════════
+
+        private void UpdateAutomationUI()
+        {
+            // Sync toggle states with service
+            AutomationEnabledToggle.IsChecked = _automationService.IsEnabled;
+            ThrottleAssistToggle.IsChecked = _automationService.IsThrottleAssistEnabled;
+            SteeringAssistToggle.IsChecked = _automationService.IsSteeringAssistEnabled;
+            
+            // Sync slider values
+            ThrottleSmoothingSlider.Value = 0.7; // Default
+            SteeringRandomnessSlider.Value = 0.3; // Default
+            
+            // Update controller status
+            UpdateControllerStatus();
+        }
+
+        private void UpdateAutomationDisplay()
+        {
+            var throttleOutput = _automationService.CurrentThrottleOutput;
+            var brakeInput = _automationService.CurrentBrakeInput;
+            var steeringCorrection = _automationService.CurrentSteeringCorrection;
+            
+            // Update virtual throttle display
+            VirtualThrottleText.Text = $"{throttleOutput:F0}%";
+            if (_virtualThrottleBar != null && _virtualThrottleBarParent != null)
+            {
+                var maxWidth = _virtualThrottleBarParent.ActualWidth > 0 
+                    ? _virtualThrottleBarParent.ActualWidth 
+                    : 100;
+                _virtualThrottleBar.Width = maxWidth * (throttleOutput / 100f);
+            }
+            
+            // Update brake display
+            AutomationBrakeText.Text = $"{brakeInput:F0}%";
+            if (_automationBrakeBar != null && _automationBrakeBarParent != null)
+            {
+                var maxWidth = _automationBrakeBarParent.ActualWidth > 0 
+                    ? _automationBrakeBarParent.ActualWidth 
+                    : 100;
+                _automationBrakeBar.Width = maxWidth * (brakeInput / 100f);
+            }
+            
+            // Update steering correction display
+            SteeringCorrectionText.Text = $"{steeringCorrection:+0.0;-0.0;0.0}°";
+        }
+
+        private void UpdateControllerStatus()
+        {
+            bool isConnected = _automationService.IsControllerConnected;
+            
+            ControllerStatusText.Text = isConnected ? "Connected" : "Disconnected";
+            ControllerStatusText.Foreground = isConnected ? _greenBrush : _redBrush;
+            ControllerConnectButton.Content = isConnected ? "DISCONNECT" : "CONNECT";
+        }
+
+        private void AutomationEnabledToggle_Click(object sender, RoutedEventArgs e)
+        {
+            bool isEnabled = AutomationEnabledToggle.IsChecked == true;
+            _automationService.SetEnabled(isEnabled);
+        }
+
+        private void ThrottleAssistToggle_Click(object sender, RoutedEventArgs e)
+        {
+            bool isEnabled = ThrottleAssistToggle.IsChecked == true;
+            _automationService.SetThrottleAssistEnabled(isEnabled);
+        }
+
+        private void SteeringAssistToggle_Click(object sender, RoutedEventArgs e)
+        {
+            bool isEnabled = SteeringAssistToggle.IsChecked == true;
+            _automationService.SetSteeringAssistEnabled(isEnabled);
+        }
+
+        private void ThrottleSmoothingSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_automationService == null) return;
+            
+            float value = (float)e.NewValue;
+            ThrottleSmoothingValueText.Text = $"{value:F2}";
+            _automationService.SetThrottleSmoothing(value);
+        }
+
+        private void SteeringRandomnessSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_automationService == null) return;
+            
+            float value = (float)e.NewValue;
+            SteeringRandomnessValueText.Text = $"{value:F2}";
+            _automationService.SetSteeringRandomness(value);
+        }
+
+        private void ControllerConnectButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_automationService.IsControllerConnected)
+            {
+                _automationService.DisconnectController();
+            }
+            else
+            {
+                bool connected = _automationService.ConnectController();
+                if (!connected)
+                {
+                    // Show error - ViGEm not available
+                    ControllerStatusText.Text = "ViGEm Not Found";
+                    ControllerStatusText.Foreground = _redBrush;
+                }
+            }
+            
+            UpdateControllerStatus();
         }
     }
 }

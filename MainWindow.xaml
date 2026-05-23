@@ -336,6 +336,167 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- ── AUTOMATION CARD ── -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                    <Rectangle Width="3" Height="14" Fill="{StaticResource AccentAmber}"
+                                               RadiusX="1" RadiusY="1" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="AUTOMATION" Style="{StaticResource SectionHeader}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+
+                                <!-- Automation Main Toggle -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="AUTOMATION ENABLED" Style="{StaticResource Label}" />
+                                        <TextBlock Text="Assisted driving layer" FontFamily="Consolas" FontSize="9" 
+                                                   Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton x:Name="AutomationEnabledToggle" Grid.Column="1" 
+                                                  Width="50" Height="24" 
+                                                  Click="AutomationEnabledToggle_Click" />
+                                </Grid>
+
+                                <Rectangle Style="{StaticResource Divider}" />
+
+                                <!-- Throttle Assist Toggle -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="THROTTLE ASSIST" Style="{StaticResource Label}" />
+                                        <TextBlock Text="Inverse brake mapping" FontFamily="Consolas" FontSize="9" 
+                                                   Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton x:Name="ThrottleAssistToggle" Grid.Column="1" 
+                                                  Width="50" Height="24" 
+                                                  Click="ThrottleAssistToggle_Click" />
+                                </Grid>
+
+                                <!-- Throttle Smoothing Slider -->
+                                <Grid Margin="0,8,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="50" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="THROTTLE SMOOTHING" Style="{StaticResource Label}" />
+                                        <Slider x:Name="ThrottleSmoothingSlider" Minimum="0" Maximum="1" Value="0.7"
+                                                TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                                Margin="0,4,0,0" ValueChanged="ThrottleSmoothingSlider_ValueChanged"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="ThrottleSmoothingValueText" Grid.Column="1" 
+                                               Text="0.70" FontFamily="Consolas" FontSize="10" 
+                                               Foreground="{StaticResource TextSecondary}" 
+                                               VerticalAlignment="Bottom" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Rectangle Style="{StaticResource Divider}" />
+
+                                <!-- Steering Assist Toggle -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="STEERING ASSIST" Style="{StaticResource Label}" />
+                                        <TextBlock Text="±5° random correction" FontFamily="Consolas" FontSize="9" 
+                                                   Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <ToggleButton x:Name="SteeringAssistToggle" Grid.Column="1" 
+                                                  Width="50" Height="24" 
+                                                  Click="SteeringAssistToggle_Click" />
+                                </Grid>
+
+                                <!-- Steering Randomness Slider -->
+                                <Grid Margin="0,8,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="50" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="RANDOMNESS" Style="{StaticResource Label}" />
+                                        <Slider x:Name="SteeringRandomnessSlider" Minimum="0" Maximum="1" Value="0.3"
+                                                TickFrequency="0.1" IsSnapToTickEnabled="True"
+                                                Margin="0,4,0,0" ValueChanged="SteeringRandomnessSlider_ValueChanged"/>
+                                    </StackPanel>
+                                    <TextBlock x:Name="SteeringRandomnessValueText" Grid.Column="1" 
+                                               Text="0.30" FontFamily="Consolas" FontSize="10" 
+                                               Foreground="{StaticResource TextSecondary}" 
+                                               VerticalAlignment="Bottom" HorizontalAlignment="Right"/>
+                                </Grid>
+
+                                <Rectangle Style="{StaticResource Divider}" />
+
+                                <!-- Controller Status -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="VIGEM CONTROLLER" Style="{StaticResource Label}" />
+                                        <TextBlock x:Name="ControllerStatusText" Text="Disconnected" FontFamily="Consolas" FontSize="9" 
+                                                   Foreground="{StaticResource TextMuted}" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                    <Button x:Name="ControllerConnectButton" Grid.Column="1" 
+                                            Content="CONNECT" FontFamily="Consolas" FontSize="9"
+                                            Background="{StaticResource BgBase}" 
+                                            Foreground="{StaticResource TextSecondary}"
+                                            BorderBrush="{StaticResource Border}" BorderThickness="1"
+                                            Padding="8,4" Cursor="Hand" Click="ControllerConnectButton_Click"/>
+                                </Grid>
+
+                                <Rectangle Style="{StaticResource Divider}" />
+
+                                <!-- Live Values Display -->
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="VIRTUAL THROTTLE" Style="{StaticResource Label}" />
+                                        <TextBlock x:Name="VirtualThrottleText" Text="0%" Style="{StaticResource Value}" 
+                                                   FontSize="16" Foreground="{StaticResource AccentGreen}" />
+                                        <Border Height="4" Background="{StaticResource BgSurface}" BorderBrush="{StaticResource Border}" 
+                                                BorderThickness="1" CornerRadius="2" Margin="0,4,0,0">
+                                            <Border x:Name="VirtualThrottleBar" HorizontalAlignment="Left" Width="0" 
+                                                    Height="4" Background="{StaticResource AccentGreen}" CornerRadius="2" />
+                                        </Border>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="BRAKE INPUT" Style="{StaticResource Label}" />
+                                        <TextBlock x:Name="AutomationBrakeText" Text="0%" Style="{StaticResource Value}" 
+                                                   FontSize="16" Foreground="{StaticResource AccentRed}" />
+                                        <Border Height="4" Background="{StaticResource BgSurface}" BorderBrush="{StaticResource Border}" 
+                                                BorderThickness="1" CornerRadius="2" Margin="0,4,0,0">
+                                            <Border x:Name="AutomationBrakeBar" HorizontalAlignment="Left" Width="0" 
+                                                    Height="4" Background="{StaticResource AccentRed}" CornerRadius="2" />
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,10,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="STEERING CORR." Style="{StaticResource Label}" />
+                                        <TextBlock x:Name="SteeringCorrectionText" Text="0.0°" Style="{StaticResource Value}" 
+                                                   FontSize="16" Foreground="{StaticResource AccentAmber}" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
