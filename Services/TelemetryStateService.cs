@@ -1,42 +1,41 @@
-using HorizonPulse.Models;
+using HorizonPulse.Telemetry.Runtime;
 
 namespace HorizonPulse.Services
 {
+    /// <summary>
+    /// Legacy telemetry state service for backward compatibility.
+    /// Wraps RuntimeTelemetryState to provide the old API.
+    /// </summary>
     public class TelemetryStateService
     {
-        private ForzaTelemetry _currentTelemetry;
-        private readonly object _lock = new();
+        private readonly RuntimeTelemetryState _runtimeState = new();
 
-        public ForzaTelemetry CurrentTelemetry
+        /// <summary>
+        /// Gets the underlying runtime telemetry state.
+        /// </summary>
+        public RuntimeTelemetryState RuntimeState => _runtimeState;
+
+        /// <summary>
+        /// Updates telemetry from parsed data.
+        /// </summary>
+        public void UpdateTelemetry(ForzaHorizon6.Models.Runtime.TelemetryData telemetry)
         {
-            get
-            {
-                lock (_lock)
-                {
-                    return _currentTelemetry;
-                }
-            }
-            private set
-            {
-                lock (_lock)
-                {
-                    _currentTelemetry = value;
-                }
-            }
+            _runtimeState.Update(telemetry);
         }
 
-        public void UpdateTelemetry(ForzaTelemetry telemetry)
-        {
-            CurrentTelemetry = telemetry;
-        }
-
-        public bool IsRaceOn => CurrentTelemetry.CurrentRaceTime > 0;
-        public float SpeedKph => CurrentTelemetry.Speed * 3.6f;
-        public float Rpm => CurrentTelemetry.RPM;
-        public byte Gear => CurrentTelemetry.Gear;
-        public float Throttle => CurrentTelemetry.Accel / 255f;
-        public float BrakeInput => CurrentTelemetry.Brake / 255f;
-        public ushort LapNumber => CurrentTelemetry.LapNumber;
-        public float CurrentRaceTime => CurrentTelemetry.CurrentRaceTime;
+        // Legacy properties for backward compatibility
+        public bool IsRaceOn => _runtimeState.IsRaceOn;
+        public float SpeedKph => _runtimeState.SpeedKph;
+        public float Rpm => _runtimeState.Rpm;
+        public byte Gear => _runtimeState.Gear;
+        public float Throttle => _runtimeState.Throttle;
+        public float BrakeInput => _runtimeState.BrakeInput;
+        public ushort LapNumber => _runtimeState.LapNumber;
+        public float CurrentRaceTime => _runtimeState.CurrentRaceTime;
+        
+        /// <summary>
+        /// Gets the current runtime telemetry state for direct access.
+        /// </summary>
+        public RuntimeTelemetryState CurrentState => _runtimeState;
     }
 }

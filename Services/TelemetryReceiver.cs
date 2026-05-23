@@ -1,17 +1,35 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
-using HorizonPulse.Models;
+using HorizonPulse.Telemetry.Services;
 
 namespace HorizonPulse.Services
 {
+    /// <summary>
+    /// UDP telemetry receiver that forwards raw packets to the ingestion service.
+    /// Updated to work with the new TelemetryIngestionService.
+    /// </summary>
     public class TelemetryReceiver
     {
         private UdpClient _udpClient;
         private const int PacketSize = 324;
         private bool _isRunning;
+        private readonly TelemetryIngestionService _ingestionService;
 
-        public event Action<ForzaTelemetry>? PacketReceived;
+        /// <summary>
+        /// Gets the telemetry ingestion service for accessing parsed state.
+        /// </summary>
+        public TelemetryIngestionService Ingestion => _ingestionService;
+
+        /// <summary>
+        /// Legacy event for backward compatibility. Prefer using Ingestion.TelemetryReceived.
+        /// </summary>
+        [Obsolete("Use Ingestion.TelemetryReceived instead")]
+        public event Action<Models.ForzaTelemetry>? PacketReceived;
+
+        public TelemetryReceiver()
+        {
+            _ingestionService = new TelemetryIngestionService();
+        }
 
         public void Start(int port = 54321)
         {
@@ -27,6 +45,7 @@ namespace HorizonPulse.Services
         {
             _isRunning = false;
             _udpClient?.Close();
+            _ingestionService?.Dispose();
         }
 
         private async Task ListenLoop()
@@ -40,13 +59,21 @@ namespace HorizonPulse.Services
 
                     if (data.Length < PacketSize) continue;
 
-                    var telemetry = BytesToStruct<ForzaTelemetry>(data);
-                    PacketReceived?.Invoke(telemetry);
+                    // Process through new ingestion service
+                    _ingestionService.ProcessPacket(data);
+
+                    // Legacy support: convert struct for old subscribers
+#pragma warning disable CS0618
+                    if (PacketReceived != null)
+                    {
+                        var legacyTelemetry = BytesToStruct<Models.ForzaTelemetry>(data);
+                        PacketReceived?.Invoke(legacyTelemetry);
+                    }
+#pragma warning restore CS0618
                 }
                 catch (ObjectDisposedException) { break; }
                 catch (Exception ex)
                 {
-                    // Log exception
                     System.Diagnostics.Debug.WriteLine($"Telemetry receiver error: {ex.Message}");
                 }
             }
