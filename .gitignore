@@ -1,24 +1,28 @@
-```
-# Build artifacts
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
 *.obj
-*.exe
 *.dll
-*.pdb
-*.nupkg
-*.snupkg
-bin/
-obj/
-Debug/
-Release/
+*.exe
+*.so
+*.class
+*.out
 
 # Dependencies
-packages/
+.venv/
+venv/
 node_modules/
-.nuget/
-.nuget.packages/
+dist/
+build/
+target/
+.gradle/
 
-# Logs
+# Logs and temp files
 *.log
+*.tmp
+*.swp
+*.swo
 
 # Environment
 .env
@@ -28,12 +32,32 @@ node_modules/
 # Editors
 .vscode/
 .idea/
-*.suo
+*.userprefs
 *.user
-*.userosscache
-*.sln.docstates
 
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
-```
+desktop.ini
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Python specific
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
+arm64/

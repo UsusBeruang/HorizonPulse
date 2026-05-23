@@ -6,7 +6,6 @@ using System.Windows.Threading;
 using HorizonPulse.Services;
 using HorizonPulse.Telemetry.Runtime;
 using HorizonPulse.Automation.Services;
-using HorizonPulse.Automation.Models;
 
 namespace HorizonPulse
 {
@@ -47,7 +46,7 @@ namespace HorizonPulse
             
             _telemetryReceiver = new TelemetryReceiver();
             _runtimeState = new RuntimeTelemetryState();
-            _automationService = new AutomationService(new AutomationSettings());
+            _automationService = new AutomationService();
             
             // Initialize cached brushes
             _greenBrush = new SolidColorBrush(Colors.Green);
@@ -98,9 +97,6 @@ namespace HorizonPulse
             // Subscribe to parsed telemetry events
             _telemetryReceiver.Ingestion.TelemetryReceived += OnTelemetryReceived;
             _telemetryReceiver.Start(54321);
-            
-            // Start automation service
-            _automationService.Start();
             
             UpdateUI();
         }
@@ -349,10 +345,8 @@ namespace HorizonPulse
 
         private void UpdateAutomationUI()
         {
-            // Sync toggle states with service
+            // Sync toggle state with service
             AutomationEnabledToggle.IsChecked = _automationService.IsEnabled;
-            ThrottleAssistToggle.IsChecked = _automationService.IsThrottleAssistEnabled;
-            SteeringAssistToggle.IsChecked = _automationService.IsSteeringAssistEnabled;
             
             // Sync slider values
             ThrottleSmoothingSlider.Value = 0.7; // Default
@@ -379,13 +373,13 @@ namespace HorizonPulse
             }
             
             // Update brake display
-            AutomationBrakeText.Text = $"{brakeInput:F0}%";
+            AutomationBrakeText.Text = $"{brakeInput:P0}";
             if (_automationBrakeBar != null && _automationBrakeBarParent != null)
             {
                 var maxWidth = _automationBrakeBarParent.ActualWidth > 0 
                     ? _automationBrakeBarParent.ActualWidth 
                     : 100;
-                _automationBrakeBar.Width = maxWidth * (brakeInput / 100f);
+                _automationBrakeBar.Width = maxWidth * brakeInput;
             }
             
             // Update steering correction display
@@ -398,25 +392,12 @@ namespace HorizonPulse
             
             ControllerStatusText.Text = isConnected ? "Connected" : "Disconnected";
             ControllerStatusText.Foreground = isConnected ? _greenBrush : _redBrush;
-            ControllerConnectButton.Content = isConnected ? "DISCONNECT" : "CONNECT";
         }
 
         private void AutomationEnabledToggle_Click(object sender, RoutedEventArgs e)
         {
             bool isEnabled = AutomationEnabledToggle.IsChecked == true;
             _automationService.SetEnabled(isEnabled);
-        }
-
-        private void ThrottleAssistToggle_Click(object sender, RoutedEventArgs e)
-        {
-            bool isEnabled = ThrottleAssistToggle.IsChecked == true;
-            _automationService.SetThrottleAssistEnabled(isEnabled);
-        }
-
-        private void SteeringAssistToggle_Click(object sender, RoutedEventArgs e)
-        {
-            bool isEnabled = SteeringAssistToggle.IsChecked == true;
-            _automationService.SetSteeringAssistEnabled(isEnabled);
         }
 
         private void ThrottleSmoothingSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -435,26 +416,6 @@ namespace HorizonPulse
             float value = (float)e.NewValue;
             SteeringRandomnessValueText.Text = $"{value:F2}";
             _automationService.SetSteeringRandomness(value);
-        }
-
-        private void ControllerConnectButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_automationService.IsControllerConnected)
-            {
-                _automationService.DisconnectController();
-            }
-            else
-            {
-                bool connected = _automationService.ConnectController();
-                if (!connected)
-                {
-                    // Show error - ViGEm not available
-                    ControllerStatusText.Text = "ViGEm Not Found";
-                    ControllerStatusText.Foreground = _redBrush;
-                }
-            }
-            
-            UpdateControllerStatus();
         }
     }
 }
