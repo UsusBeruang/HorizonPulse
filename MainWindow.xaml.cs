@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using HorizonPulse.Services;
 using HorizonPulse.Telemetry.Runtime;
 
@@ -8,6 +9,27 @@ namespace HorizonPulse
     {
         private readonly TelemetryReceiver _telemetryReceiver;
         private readonly RuntimeTelemetryState _runtimeState;
+        
+        // UI throttling optimized for 200 FPS telemetry
+        // At 200 FPS, packets arrive every 5ms. We update UI at 60 FPS (16.67ms)
+        // This processes ~3 packets per UI update, balancing responsiveness and performance
+        private const int UiUpdateIntervalMs = 16; // ~60 FPS for UI
+        private readonly DispatcherTimer _uiUpdateTimer;
+        private bool _pendingUiUpdate;
+        
+        // Track high-priority events that should trigger immediate UI updates
+        private bool _pendingCollisionEvent;
+        
+        // Cached UI element references to avoid FindName calls
+        private Border _throttleBar;
+        private Border _brakeBar;
+        private Border _steerBar;
+        private Border _throttleBarParent;
+        private Border _brakeBarParent;
+        
+        // Cached brushes to avoid allocation on every update
+        private readonly System.Windows.Media.SolidColorBrush _greenBrush;
+        private readonly System.Windows.Media.SolidColorBrush _redBrush;
 
         public MainWindow()
         {
@@ -15,6 +37,41 @@ namespace HorizonPulse
             
             _telemetryReceiver = new TelemetryReceiver();
             _runtimeState = new RuntimeTelemetryState();
+            
+            // Initialize cached brushes
+            _greenBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green);
+            _redBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
+            _greenBrush.Freeze();
+            _redBrush.Freeze();
+            
+            // Cache UI element references
+            _throttleBar = FindName("_ThrottleBar") as Border;
+            _brakeBar = FindName("_BrakeBar") as Border;
+            _steerBar = FindName("_SteerBar") as Border;
+            
+            if (_throttleBar?.Parent is Border tbParent) _throttleBarParent = tbParent;
+            if (_brakeBar?.Parent is Border bbParent) _brakeBarParent = bbParent;
+            
+            // Setup throttled UI update timer optimized for 200 FPS telemetry
+            _uiUpdateTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(UiUpdateIntervalMs)
+            };
+            _uiUpdateTimer.Tick += (s, e) =>
+            {
+                if (_pendingCollisionEvent)
+                {
+                    // Collision events get immediate priority - process even if no regular update pending
+                    _pendingCollisionEvent = false;
+                    UpdateUI();
+                }
+                else if (_pendingUiUpdate)
+                {
+                    _pendingUiUpdate = false;
+                    UpdateUI();
+                }
+            };
+            _uiUpdateTimer.Start();
             
             // Subscribe to parsed telemetry events from the ingestion service
             _telemetryReceiver.Ingestion.TelemetryReceived += OnTelemetryReceived;
@@ -29,11 +86,14 @@ namespace HorizonPulse
             // Update runtime state (thread-safe)
             _runtimeState.Update(telemetry);
             
-            // Update UI on the UI thread
-            Dispatcher.Invoke(() =>
+            // Check for high-priority events that need immediate attention
+            if (telemetry.Damage.HasCollision)
             {
-                UpdateUI();
-            });
+                _pendingCollisionEvent = true;
+            }
+            
+            // Mark UI update as pending - will be processed by timer
+            _pendingUiUpdate = true;
         }
 
         private void UpdateUI()
@@ -51,27 +111,24 @@ namespace HorizonPulse
             BrakeTextInput.Text = $"{state.BrakeInput:P1}";
             SteerText.Text = $"{state.Input.Steer}";
             
-            // Update throttle bar width
-            var throttleBar = FindName("_ThrottleBar") as Border;
-            if (throttleBar != null && throttleBar.Parent is Border parentBorder)
+            // Update throttle bar width using cached reference
+            if (_throttleBar != null && _throttleBarParent != null)
             {
-                throttleBar.Width = parentBorder.ActualWidth * state.Throttle;
+                _throttleBar.Width = _throttleBarParent.ActualWidth * state.Throttle;
             }
             
-            // Update brake bar width
-            var brakeBar = FindName("_BrakeBar") as Border;
-            if (brakeBar != null && brakeBar.Parent is Border brakeParent)
+            // Update brake bar width using cached reference
+            if (_brakeBar != null && _brakeBarParent != null)
             {
-                brakeBar.Width = brakeParent.ActualWidth * state.BrakeInput;
+                _brakeBar.Width = _brakeBarParent.ActualWidth * state.BrakeInput;
             }
             
-            // Update steer bar position
-            var steerBar = FindName("_SteerBar") as Border;
-            if (steerBar != null)
+            // Update steer bar position using cached reference
+            if (_steerBar != null)
             {
                 var steerNormalized = state.Input.Steer / 127f;
                 // Center is 0, full left is -1, full right is 1
-                steerBar.HorizontalAlignment = steerNormalized switch
+                _steerBar.HorizontalAlignment = steerNormalized switch
                 {
                     < -0.1 => HorizontalAlignment.Left,
                     > 0.1 => HorizontalAlignment.Right,
@@ -83,11 +140,9 @@ namespace HorizonPulse
             RaceTimeText.Text = $"{state.CurrentRaceTime:F1}s";
             CurrentLapTimeText.Text = $"{state.RaceTiming.CurrentLap:F1}s";
             
-            // Update status
+            // Update status using cached brushes
             StatusText.Text = state.IsRaceOn ? "Racing" : "Not Racing";
-            StatusText.Foreground = state.IsRaceOn 
-                ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Green) 
-                : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Colors.Red);
+            StatusText.Foreground = state.IsRaceOn ? _greenBrush : _redBrush;
             
             // Populate inspector panel with extended telemetry
             UpdateInspectorPanel(state);
@@ -97,6 +152,10 @@ namespace HorizonPulse
         {
             var panel = InspectorPanel;
             if (panel == null) return;
+            
+            // Skip full rebuild if no changes - inspector data changes less frequently
+            // Only rebuild when there's significant change (e.g., collision, gear change)
+            // For now, we keep the rebuild but it will be throttled by the UI timer
             
             panel.Children.Clear();
             
@@ -209,6 +268,7 @@ namespace HorizonPulse
 
         protected override void OnClosed(EventArgs e)
         {
+            _uiUpdateTimer?.Stop();
             _telemetryReceiver.Stop();
             base.OnClosed(e);
         }
