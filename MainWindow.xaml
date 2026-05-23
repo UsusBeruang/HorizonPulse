@@ -304,6 +304,216 @@
                                 <TextBlock Text="CAR ORIENTATION" Style="{StaticResource SectionHeader}"
                                            Margin="0,0,0,14"/>
 
+                                <!-- Visual Car Representation -->
+                                <Border Background="#0D1117" BorderBrush="#252B35" BorderThickness="1"
+                                        CornerRadius="4" Height="180" Margin="0,0,0,14">
+                                    <Grid>
+                                        <!-- Viewport for 3D car model -->
+                                        <Viewport3D Name="CarViewport3D" ClipToBounds="True">
+                                            <Viewport3D.Camera>
+                                                <PerspectiveCamera Position="0,3,6" 
+                                                                   LookDirection="0,-0.5,-1" 
+                                                                   UpDirection="0,1,0" 
+                                                                   FieldOfView="45"/>
+                                            </Viewport3D.Camera>
+                                            
+                                            <!-- Lighting -->
+                                            <ModelVisual3D>
+                                                <ModelVisual3D.Content>
+                                                    <DirectionalLight Color="#FFFFFF" Direction="-1,-1,-1"/>
+                                                </ModelVisual3D.Content>
+                                            </ModelVisual3D>
+                                            <ModelVisual3D>
+                                                <ModelVisual3D.Content>
+                                                    <AmbientLight Color="#404040"/>
+                                                </ModelVisual3D.Content>
+                                            </ModelVisual3D>
+                                            
+                                            <!-- Car Model Container with Transform -->
+                                            <ModelVisual3D Name="CarModelContainer">
+                                                <ModelVisual3D.Content>
+                                                    <Model3DGroup>
+                                                        <!-- Car Body (Main Chassis) -->
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <BoxGeometryExtents Center="0,0.4,0" Size="1.8,0.5,0.9"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Material>
+                                                                <DiffuseMaterial Brush="#00E676"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        
+                                                        <!-- Car Cabin -->
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <BoxGeometryExtents Center="0,0.9,-0.2" Size="1.0,0.4,0.7"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Material>
+                                                                <DiffuseMaterial Brush="#181C22"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        
+                                                        <!-- Front Wheels -->
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <CylinderGeometry Radius="0.35" Length="0.15" Tessellation="16"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Transform>
+                                                                <Transform3DGroup>
+                                                                    <RotateTransform3D>
+                                                                        <RotateTransform3D.Rotation>
+                                                                            <AxisAngleRotation3D Axis="0,0,1" Angle="90"/>
+                                                                        </RotateTransform3D.Rotation>
+                                                                    </RotateTransform3D>
+                                                                    <TranslateTransform3D OffsetX="0.6" OffsetY="0.35" OffsetZ="0.5"/>
+                                                                </Transform3DGroup>
+                                                            </GeometryModel3D.Transform>
+                                                            <GeometryModel3D.Material>
+                                                                <DiffuseMaterial Brush="#111111"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <CylinderGeometry Radius="0.35" Length="0.15" Tessellation="16"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Transform>
+                                                                <Transform3DGroup>
+                                                                    <RotateTransform3D>
+                                                                        <RotateTransform3D.Rotation>
+                                                                            <AxisAngleRotation3D Axis="0,0,1" Angle="90"/>
+                                                                        </RotateTransform3D.Rotation>
+                                                                    </RotateTransform3D>
+                                                                    <TranslateTransform3D OffsetX="0.6" OffsetY="0.35" OffsetZ="-0.5"/>
+                                                                </Transform3DGroup>
+                                                            </GeometryModel3D.Transform>
+                                                            <GeometryModel3D.Material>
+                                                                <DiffuseMaterial Brush="#111111"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        
+                                                        <!-- Rear Wheels -->
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <CylinderGeometry Radius="0.35" Length="0.15" Tessellation="16"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Transform>
+                                                                <Transform3DGroup>
+                                                                    <RotateTransform3D>
+                                                                        <RotateTransform3D.Rotation>
+                                                                            <AxisAngleRotation3D Axis="0,0,1" Angle="90"/>
+                                                                        </RotateTransform3D.Rotation>
+                                                                    </RotateTransform3D>
+                                                                    <TranslateTransform3D OffsetX="-0.6" OffsetY="0.35" OffsetZ="0.5"/>
+                                                                </Transform3DGroup>
+                                                            </GeometryModel3D.Transform>
+                                                            <GeometryModel3D.Material>
+                                                                <DiffuseMaterial Brush="#111111"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <CylinderGeometry Radius="0.35" Length="0.15" Tessellation="16"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Transform>
+                                                                <Transform3DGroup>
+                                                                    <RotateTransform3D>
+                                                                        <RotateTransform3D.Rotation>
+                                                                            <AxisAngleRotation3D Axis="0,0,1" Angle="90"/>
+                                                                        </RotateTransform3D.Rotation>
+                                                                    </RotateTransform3D>
+                                                                    <TranslateTransform3D OffsetX="-0.6" OffsetY="0.35" OffsetZ="-0.5"/>
+                                                                </Transform3DGroup>
+                                                            </GeometryModel3D.Transform>
+                                                            <GeometryModel3D.Material>
+                                                                <DiffuseMaterial Brush="#111111"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        
+                                                        <!-- Headlights -->
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <BoxGeometryExtents Center="0.9,0.4,0.35" Size="0.1,0.15,0.15"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Material>
+                                                                <EmissiveMaterial Brush="#FFEB3B"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <BoxGeometryExtents Center="0.9,0.4,-0.35" Size="0.1,0.15,0.15"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Material>
+                                                                <EmissiveMaterial Brush="#FFEB3B"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        
+                                                        <!-- Taillights -->
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <BoxGeometryExtents Center="-0.9,0.4,0.35" Size="0.1,0.15,0.15"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Material>
+                                                                <EmissiveMaterial Brush="#FF3D3D"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                        <GeometryModel3D>
+                                                            <GeometryModel3D.Geometry>
+                                                                <BoxGeometryExtents Center="-0.9,0.4,-0.35" Size="0.1,0.15,0.15"/>
+                                                            </GeometryModel3D.Geometry>
+                                                            <GeometryModel3D.Material>
+                                                                <EmissiveMaterial Brush="#FF3D3D"/>
+                                                            </GeometryModel3D.Material>
+                                                        </GeometryModel3D>
+                                                    </Model3DGroup>
+                                                </ModelVisual3D.Content>
+                                                <!-- Car orientation transform - updated from code-behind -->
+                                                <ModelVisual3D.Transform>
+                                                    <Transform3DGroup Name="CarOrientationTransform">
+                                                        <RotateTransform3D Name="YawTransform">
+                                                            <RotateTransform3D.Rotation>
+                                                                <AxisAngleRotation3D Axis="0,1,0" Angle="0"/>
+                                                            </RotateTransform3D.Rotation>
+                                                        </RotateTransform3D>
+                                                        <RotateTransform3D Name="PitchTransform">
+                                                            <RotateTransform3D.Rotation>
+                                                                <AxisAngleRotation3D Axis="1,0,0" Angle="0"/>
+                                                            </RotateTransform3D.Rotation>
+                                                        </RotateTransform3D>
+                                                        <RotateTransform3D Name="RollTransform">
+                                                            <RotateTransform3D.Rotation>
+                                                                <AxisAngleRotation3D Axis="0,0,1" Angle="0"/>
+                                                            </RotateTransform3D.Rotation>
+                                                        </RotateTransform3D>
+                                                    </Transform3DGroup>
+                                                </ModelVisual3D.Transform>
+                                            </ModelVisual3D>
+                                            
+                                            <!-- Ground Plane -->
+                                            <ModelVisual3D>
+                                                <ModelVisual3D.Content>
+                                                    <GeometryModel3D>
+                                                        <GeometryModel3D.Geometry>
+                                                            <MeshGeometry3D Positions="-3,0,-3 3,0,-3 3,0,3 -3,0,3" TriangleIndices="0,1,2 0,2,3"/>
+                                                        </GeometryModel3D.Geometry>
+                                                        <GeometryModel3D.Material>
+                                                            <DiffuseMaterial Brush="#1A1F26"/>
+                                                        </GeometryModel3D.Material>
+                                                    </GeometryModel3D>
+                                                </ModelVisual3D.Content>
+                                            </ModelVisual3D>
+                                        </Viewport3D>
+                                        
+                                        <!-- Overlay labels -->
+                                        <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,8">
+                                            <TextBlock Text="VISUAL ORIENTATION" FontFamily="Consolas" FontSize="9"
+                                                       Foreground="#414D5E" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Numerical readout below visual -->
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>

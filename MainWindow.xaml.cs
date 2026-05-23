@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using HorizonPulse.Services;
 using HorizonPulse.Telemetry.Runtime;
@@ -28,6 +29,11 @@ namespace HorizonPulse
         private Border _throttleBarParent;
         private Border _brakeBarParent;
         
+        // 3D Car orientation transforms
+        private RotateTransform3D _yawTransform;
+        private RotateTransform3D _pitchTransform;
+        private RotateTransform3D _rollTransform;
+        
         // Cached brushes to avoid allocation on every update
         private readonly System.Windows.Media.SolidColorBrush _greenBrush;
         private readonly System.Windows.Media.SolidColorBrush _redBrush;
@@ -52,6 +58,11 @@ namespace HorizonPulse
             
             if (_throttleBar?.Parent is Border tbParent) _throttleBarParent = tbParent;
             if (_brakeBar?.Parent is Border bbParent) _brakeBarParent = bbParent;
+            
+            // Cache 3D transform references for car orientation visualization
+            _yawTransform = FindName("YawTransform") as RotateTransform3D;
+            _pitchTransform = FindName("PitchTransform") as RotateTransform3D;
+            _rollTransform = FindName("RollTransform") as RotateTransform3D;
             
             // Setup throttled UI update timer optimized for 200 FPS telemetry
             _uiUpdateTimer = new DispatcherTimer
@@ -133,9 +144,17 @@ namespace HorizonPulse
             }
             
             // Car Orientation Card - Yaw, Pitch, Roll (convert radians to degrees)
-            YawText.Text = $"{RadToDeg(state.Motion.Yaw):F1}°";
-            PitchText.Text = $"{RadToDeg(state.Motion.Pitch):F1}°";
-            RollText.Text = $"{RadToDeg(state.Motion.Roll):F1}°";
+            var yawDeg = RadToDeg(state.Motion.Yaw);
+            var pitchDeg = RadToDeg(state.Motion.Pitch);
+            var rollDeg = RadToDeg(state.Motion.Roll);
+            
+            // Update numerical display
+            YawText.Text = $"{yawDeg:F1}°";
+            PitchText.Text = $"{pitchDeg:F1}°";
+            RollText.Text = $"{rollDeg:F1}°";
+            
+            // Update 3D car model orientation
+            UpdateCarOrientation(yawDeg, pitchDeg, rollDeg);
             
             // Timing Card - Format as hhhh:mm:ss.SSS
             RaceTimeText.Text = FormatTimeHMS(state.CurrentRaceTime);
@@ -297,6 +316,28 @@ namespace HorizonPulse
         }
 
         private static double RadToDeg(float radians) => radians * 180.0 / Math.PI;
+
+        private void UpdateCarOrientation(double yaw, double pitch, double roll)
+        {
+            // Update 3D transforms for the car model
+            // Yaw: rotation around Y axis (left/right turning)
+            if (_yawTransform?.Rotation is AxisAngleRotation3D yawRotation)
+            {
+                yawRotation.Angle = yaw;
+            }
+            
+            // Pitch: rotation around X axis (nose up/down)
+            if (_pitchTransform?.Rotation is AxisAngleRotation3D pitchRotation)
+            {
+                pitchRotation.Angle = pitch;
+            }
+            
+            // Roll: rotation around Z axis (tilting left/right)
+            if (_rollTransform?.Rotation is AxisAngleRotation3D rollRotation)
+            {
+                rollRotation.Angle = roll;
+            }
+        }
 
         protected override void OnClosed(EventArgs e)
         {
