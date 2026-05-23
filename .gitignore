@@ -1,0 +1,26 @@
+# Build output
+bin/
+obj/
+packages/
+
+# IDE / Editor
+.vs/
+.idea/
+riderModule.iml
+
+# Rider / ReSharper
+_ReSharper*/
+_ReSharper.Caches/
+
+# User-specific files
+*.user
+*.suo
+
+# Logs
+*.log
+
+# Test output
+TestResults/
+
+# AI / Assistant tooling
+.aider*
