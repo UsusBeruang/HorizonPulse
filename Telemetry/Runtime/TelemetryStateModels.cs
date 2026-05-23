@@ -1,3 +1,5 @@
+using HorizonPulse.Models.Telemetry;
+
 namespace HorizonPulse.Telemetry.Runtime;
 
 using System.Diagnostics.CodeAnalysis;
@@ -109,7 +111,7 @@ public sealed class InputTelemetryState
     public float HandBrakePercent => _handBrake / 255f;
     public float SteerNormalized => _steer / 127f;
 
-    public void Update(ForzaHorizon6.Models.Telemetry.InputTelemetry telemetry)
+    public void Update(InputTelemetry telemetry)
     {
         _accel = telemetry.Accel;
         _brake = telemetry.Brake;

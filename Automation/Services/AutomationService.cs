@@ -1,9 +1,11 @@
-namespace HorizonPulse.Automation.Services;
-
+using System;
+using System.Diagnostics;
 using System.Threading;
 using HorizonPulse.Automation.Interfaces;
 using HorizonPulse.Automation.Models;
 using HorizonPulse.Telemetry.Runtime;
+
+namespace HorizonPulse.Automation.Services;
 
 /// <summary>
 /// Main automation service that coordinates throttle and steering assist.
@@ -23,6 +25,12 @@ public sealed class AutomationService : IAutomationService
     private CancellationTokenSource? _cancellationTokenSource;
     private bool _isDisposed;
     private bool _isRunning;
+
+    // Process tracking
+    private readonly Stopwatch _processCheckTimer = new();
+    private bool _isTargetGameRunning = false;
+    private bool _wasTargetGameRunning = false;
+    private const string TargetProcessName = "forzahorizon6"; // .exe is automatically implied by GetProcessesByName
 
     // Conversion constants
     private const float SteeringCenter = 128f;
@@ -65,6 +73,9 @@ public sealed class AutomationService : IAutomationService
             _settings.SteeringUpdateIntervalMs);
         
         _state = new AutomationState();
+        
+        // Start process timer
+        _processCheckTimer.Start();
         
         // Apply initial settings
         ApplySettingsToServices();
@@ -324,22 +335,47 @@ public sealed class AutomationService : IAutomationService
         if (!_vigemService.IsConnected)
             return;
 
+        // 1. Throttled Process Check (Every 2000ms to save CPU)
+        if (_processCheckTimer.ElapsedMilliseconds > 2000)
+        {
+            _isTargetGameRunning = Process.GetProcessesByName(TargetProcessName).Length > 0;
+            _processCheckTimer.Restart();
+        }
+
+        // 2. State Handling based on Process
+        if (!_isTargetGameRunning)
+        {
+            // If the game just closed, we must reset the controller so it doesn't 
+            // leave a stuck throttle/steering input broadcasting to Windows.
+            if (_wasTargetGameRunning)
+            {
+                _vigemService.Reset();
+                _wasTargetGameRunning = false;
+            }
+            return; // Abort sending new inputs
+        }
+        
+        _wasTargetGameRunning = true;
+
+        // 3. Normal Execution (Game is running, even in background)
         try
         {
             // Convert throttle (0-100) to trigger value (0-255)
             byte triggerValue = (byte)Math.Clamp(
-                _state.CurrentThrottleOutput / 100f * TriggerMaxRaw,
-                0, 255);
+                (_state.CurrentThrottleOutput / 100f) * TriggerMaxRaw,
+                0f, 255f);
 
             // Convert steering correction (-5 to +5) to stick X offset
-            // Center is 128, max offset is about ±10 for subtle correction
             float steeringOffset = _state.CurrentSteeringCorrection * (SteeringMaxRaw / 5f) * 0.15f;
-            byte stickX = (byte)Math.Clamp(SteeringCenter + steeringOffset, 0, 255);
+            byte stickX = (byte)Math.Clamp(SteeringCenter + steeringOffset, 0f, 255f);
 
-            // Apply inputs
-            _vigemService.SetLeftTrigger(triggerValue);
-            _vigemService.SetLeftStick(stickX, SteeringCenter); // Y axis centered
-            
+            // Explicitly cast SteeringCenter to (byte) to fix the float-to-byte parameter error on the Y axis
+            byte stickY = (byte)SteeringCenter;
+
+            // Apply inputs (both are now guaranteed to be bytes)
+            _vigemService.SetRightTrigger(triggerValue);
+            _vigemService.SetLeftStick(stickX, stickY); 
+    
             // Send the report
             _vigemService.SendReport();
         }

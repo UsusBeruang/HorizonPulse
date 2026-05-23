@@ -1,10 +1,14 @@
 namespace HorizonPulse.Automation.Services;
 
-using System.Runtime.InteropServices;
+using System;
+using System.Reflection;
 using HorizonPulse.Automation.Interfaces;
 using Nefarius.ViGEm.Client;
 using Nefarius.ViGEm.Client.Targets;
 using Nefarius.ViGEm.Client.Targets.Xbox360;
+
+// Create an alias to fix the ambiguous "Xbox360Button" error
+using VigemXboxButton = Nefarius.ViGEm.Client.Targets.Xbox360.Xbox360Button;
 
 /// <summary>
 /// ViGEm virtual controller service implementation.
@@ -26,18 +30,15 @@ public sealed class VigemControllerService : IVigemControllerService
     private byte _leftStickY;
     private byte _rightStickX;
     private byte _rightStickY;
-    private ushort _buttons;
 
     /// <inheritdoc/>
     public bool IsConnected
     {
-        get { lock (_lock) return _isConnected && _controller?.IsConnected == true; }
+        // ViGEm's IXbox360Controller doesn't expose an IsConnected property, 
+        // so we rely solely on our internal tracking flag.
+        get { lock (_lock) return _isConnected; }
     }
 
-    /// <summary>
-    /// Initializes a new instance of the ViGEm controller service.
-    /// Does not connect automatically - call Connect() explicitly.
-    /// </summary>
     public VigemControllerService()
     {
         ResetState();
@@ -48,11 +49,8 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         lock (_lock)
         {
-            if (_isDisposed)
-                return false;
-
-            if (_isConnected && _controller?.IsConnected == true)
-                return true;
+            if (_isDisposed) return false;
+            if (_isConnected) return true;
 
             try
             {
@@ -60,34 +58,25 @@ public sealed class VigemControllerService : IVigemControllerService
                 _controller = _client.CreateXbox360Controller();
                 _controller.Connect();
                 
-                // Verify connection
-                if (_controller.IsConnected)
-                {
-                    _isConnected = true;
-                    ResetState();
-                    return true;
-                }
+                _isConnected = true;
+                ResetState();
+                return true;
             }
             catch (Exception ex) when (
                 ex is DllNotFoundException || 
                 ex is TargetInvocationException ||
                 ex is InvalidOperationException)
             {
-                // ViGEm driver not installed or unavailable
                 _isConnected = false;
                 Cleanup();
                 return false;
             }
             catch
             {
-                // Unknown error - clean up and report failure
                 _isConnected = false;
                 Cleanup();
                 return false;
             }
-
-            _isConnected = false;
-            return false;
         }
     }
 
@@ -96,13 +85,11 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         lock (_lock)
         {
-            if (!_isConnected)
-                return;
+            if (!_isConnected) return;
 
             try
             {
                 Reset();
-                SendReport();
             }
             catch
             {
@@ -119,11 +106,10 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         lock (_lock)
         {
-            if (!_isConnected || _controller == null)
-                return;
+            if (!_isConnected || _controller == null) return;
             
             _leftTrigger = value;
-            _controller.SetButtonState(Xbox360SpecialButton.LeftTrigger, value);
+            _controller.SetSliderValue(Xbox360Slider.LeftTrigger, value);
         }
     }
 
@@ -132,11 +118,10 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         lock (_lock)
         {
-            if (!_isConnected || _controller == null)
-                return;
+            if (!_isConnected || _controller == null) return;
             
             _rightTrigger = value;
-            _controller.SetButtonState(Xbox360SpecialButton.RightTrigger, value);
+            _controller.SetSliderValue(Xbox360Slider.RightTrigger, value);
         }
     }
 
@@ -145,13 +130,12 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         lock (_lock)
         {
-            if (!_isConnected || _controller == null)
-                return;
+            if (!_isConnected || _controller == null) return;
             
             _leftStickX = x;
             _leftStickY = y;
-            _controller.SetAxisValue(IXbox360Controller.AxisType.LeftThumbX, x);
-            _controller.SetAxisValue(IXbox360Controller.AxisType.LeftThumbY, y);
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbX, MapByteToShort(x));
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbY, MapByteToShort(y));
         }
     }
 
@@ -160,69 +144,54 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         lock (_lock)
         {
-            if (!_isConnected || _controller == null)
-                return;
+            if (!_isConnected || _controller == null) return;
             
             _rightStickX = x;
             _rightStickY = y;
-            _controller.SetAxisValue(IXbox360Controller.AxisType.RightThumbX, x);
-            _controller.SetAxisValue(IXbox360Controller.AxisType.RightThumbY, y);
+            _controller.SetAxisValue(Xbox360Axis.RightThumbX, MapByteToShort(x));
+            _controller.SetAxisValue(Xbox360Axis.RightThumbY, MapByteToShort(y));
         }
     }
 
     /// <inheritdoc/>
-    public void SetButton(Xbox360Button button, bool isPressed)
+    public void SetButton(Interfaces.Xbox360Button button, bool isPressed)
     {
         lock (_lock)
         {
-            if (!_isConnected || _controller == null)
-                return;
+            if (!_isConnected || _controller == null) return;
 
-            var xboxButton = button switch
+            // Map HorizonPulse Interfaces enum to ViGEm enum
+            var vigemButton = button switch
             {
-                Xbox360Button.Up => Xbox360Button.Up,
-                Xbox360Button.Down => Xbox360Button.Down,
-                Xbox360Button.Left => Xbox360Button.Left,
-                Xbox360Button.Right => Xbox360Button.Right,
-                Xbox360Button.Start => Xbox360Button.Start,
-                Xbox360Button.Back => Xbox360Button.Back,
-                Xbox360Button.LeftThumb => Xbox360Button.LeftThumb,
-                Xbox360Button.RightThumb => Xbox360Button.RightThumb,
-                Xbox360Button.LeftShoulder => Xbox360Button.LeftShoulder,
-                Xbox360Button.RightShoulder => Xbox360Button.RightShoulder,
-                Xbox360Button.A => Xbox360Button.A,
-                Xbox360Button.B => Xbox360Button.B,
-                Xbox360Button.X => Xbox360Button.X,
-                Xbox360Button.Y => Xbox360Button.Y,
-                Xbox360Button.Guide => Xbox360Button.Guide,
+                Interfaces.Xbox360Button.Up => VigemXboxButton.Up,
+                Interfaces.Xbox360Button.Down => VigemXboxButton.Down,
+                Interfaces.Xbox360Button.Left => VigemXboxButton.Left,
+                Interfaces.Xbox360Button.Right => VigemXboxButton.Right,
+                Interfaces.Xbox360Button.Start => VigemXboxButton.Start,
+                Interfaces.Xbox360Button.Back => VigemXboxButton.Back,
+                Interfaces.Xbox360Button.LeftThumb => VigemXboxButton.LeftThumb,
+                Interfaces.Xbox360Button.RightThumb => VigemXboxButton.RightThumb,
+                Interfaces.Xbox360Button.LeftShoulder => VigemXboxButton.LeftShoulder,
+                Interfaces.Xbox360Button.RightShoulder => VigemXboxButton.RightShoulder,
+                Interfaces.Xbox360Button.A => VigemXboxButton.A,
+                Interfaces.Xbox360Button.B => VigemXboxButton.B,
+                Interfaces.Xbox360Button.X => VigemXboxButton.X,
+                Interfaces.Xbox360Button.Y => VigemXboxButton.Y,
+                Interfaces.Xbox360Button.Guide => VigemXboxButton.Guide,
                 _ => throw new ArgumentOutOfRangeException(nameof(button))
             };
 
-            if (isPressed)
-                _controller.SetButtonState(xboxButton);
-            else
-                _controller.ClearButtonState(xboxButton);
+            // ViGEm expects the button AND a boolean for Pressed (true) or Released (false)
+            _controller.SetButtonState(vigemButton, isPressed);
         }
     }
 
     /// <inheritdoc/>
     public void SendReport()
     {
-        lock (_lock)
-        {
-            if (!_isConnected || _controller == null)
-                return;
-
-            try
-            {
-                _controller.SendReport();
-            }
-            catch
-            {
-                // Connection may have been lost
-                _isConnected = false;
-            }
-        }
+        // ViGEmClient 1.21.256 automatically updates the controller state instantly 
+        // when SetSliderValue, SetAxisValue, or SetButtonState is called. 
+        // There is no manual SendReport() necessary in this API version.
     }
 
     /// <inheritdoc/>
@@ -232,22 +201,24 @@ public sealed class VigemControllerService : IVigemControllerService
         {
             ResetState();
             
-            if (!_isConnected || _controller == null)
-                return;
+            if (!_isConnected || _controller == null) return;
 
             try
             {
-                // Reset all inputs to neutral
-                _controller.SetButtonState(Xbox360SpecialButton.LeftTrigger, 0);
-                _controller.SetButtonState(Xbox360SpecialButton.RightTrigger, 0);
-                _controller.SetAxisValue(IXbox360Controller.AxisType.LeftThumbX, 128);
-                _controller.SetAxisValue(IXbox360Controller.AxisType.LeftThumbY, 128);
-                _controller.SetAxisValue(IXbox360Controller.AxisType.RightThumbX, 128);
-                _controller.SetAxisValue(IXbox360Controller.AxisType.RightThumbY, 128);
+                // Reset Triggers
+                _controller.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
+                _controller.SetSliderValue(Xbox360Slider.RightTrigger, 0);
                 
-                foreach (Xbox360Button b in Enum.GetValues(typeof(Xbox360Button)))
+                // 0 is perfectly centered in a 'short' data type
+                _controller.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
+                _controller.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
+                _controller.SetAxisValue(Xbox360Axis.RightThumbX, 0);
+                _controller.SetAxisValue(Xbox360Axis.RightThumbY, 0);
+                
+                // Clear all buttons
+                foreach (VigemXboxButton b in Enum.GetValues(typeof(VigemXboxButton)))
                 {
-                    _controller.ClearButtonState(b);
+                    _controller.SetButtonState(b, false);
                 }
             }
             catch
@@ -262,9 +233,7 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         lock (_lock)
         {
-            if (_isDisposed)
-                return;
-
+            if (_isDisposed) return;
             Disconnect();
             _isDisposed = true;
         }
@@ -276,10 +245,7 @@ public sealed class VigemControllerService : IVigemControllerService
         {
             if (_controller != null)
             {
-                if (_controller.IsConnected)
-                {
-                    _controller.Disconnect();
-                }
+                _controller.Disconnect();
                 _controller = null;
             }
 
@@ -299,10 +265,18 @@ public sealed class VigemControllerService : IVigemControllerService
     {
         _leftTrigger = 0;
         _rightTrigger = 0;
-        _leftStickX = 128;
+        _leftStickX = 128; // 128 represents center in 0-255 byte math
         _leftStickY = 128;
         _rightStickX = 128;
         _rightStickY = 128;
-        _buttons = 0;
+    }
+
+    /// <summary>
+    /// Helper to mathematically map a 0-255 byte into a -32768 to 32767 short.
+    /// ViGEm thumbsticks expect shorts, but your application UI works with bytes.
+    /// </summary>
+    private static short MapByteToShort(byte value)
+    {
+        return (short)((value * 257) - 32768);
     }
 }

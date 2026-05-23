@@ -1,3 +1,5 @@
+using HorizonPulse.Models.Telemetry;
+
 namespace ForzaHorizon6.Services;
 
 using System.Buffers.Binary;

@@ -319,18 +319,24 @@ namespace HorizonPulse
         {
             if (InspectorToggle.IsChecked == true)
             {
-                // Expand the Inspector (Restore original 2* / 14 / 3* layout)
+                // Expand the Inspector
                 LeftColumn.Width = new GridLength(2, GridUnitType.Star);
-                SpacerColumn.Width = new GridLength(14);
+                CenterColumn.Width = new GridLength(2, GridUnitType.Star);
+        
+                // Show Spacer and Inspector Column
+                InspectorSpacer.Width = new GridLength(14);
                 InspectorColumn.Width = new GridLength(3, GridUnitType.Star);
         
                 InspectorContainer.Visibility = Visibility.Visible;
             }
             else
             {
-                // Collapse the Inspector (Left panel takes 100% space)
+                // Collapse the Inspector (Left and Center split the remaining space 50/50)
                 LeftColumn.Width = new GridLength(1, GridUnitType.Star);
-                SpacerColumn.Width = new GridLength(0);
+                CenterColumn.Width = new GridLength(1, GridUnitType.Star);
+        
+                // Hide Spacer and Inspector Column
+                InspectorSpacer.Width = new GridLength(0);
                 InspectorColumn.Width = new GridLength(0);
         
                 InspectorContainer.Visibility = Visibility.Collapsed;

@@ -1,3 +1,5 @@
+using HorizonPulse.Models.Telemetry;
+
 namespace ForzaHorizon6.Models.Runtime;
 
 using ForzaHorizon6.Models.Telemetry;

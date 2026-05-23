@@ -9,23 +9,9 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="HelixToolkit.Wpf" Version="2.24.0" />
-        <PackageReference Include="Nefarius.ViGEm.Client" Version="1.22.0" />
+        <PackageReference Include="Nefarius.ViGEm.Client" Version="1.21.256" />
     </ItemGroup>
-
-    <ItemGroup>
-      <None Remove="Assets\wheel-racing.mtl" />
-      <Content Include="Assets\wheel-racing.mtl">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </Content>
-      <None Remove="Assets\wheel-racing.obj" />
-      <None Remove="Assets\race.mtl" />
-      <Content Include="Assets\race.mtl">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </Content>
-      <None Remove="Assets\race.obj" />
-    </ItemGroup>
-
+    
     <ItemGroup>
       <Folder Include="Assets\" />
     </ItemGroup>
