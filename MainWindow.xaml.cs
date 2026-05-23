@@ -118,22 +118,31 @@ namespace HorizonPulse
                 _brakeBar.Width = _brakeBarParent.ActualWidth * state.BrakeInput;
             }
             
-            // Update steer bar position using cached reference
-            if (_steerBar != null)
+            // Update steer bar position using cached reference - smooth visualization from -127 to 0 to 127
+            if (_steerBar != null && _steerBar.Parent is Grid steerGrid)
             {
                 var steerNormalized = state.Input.Steer / 127f;
-                // Center is 0, full left is -1, full right is 1
-                _steerBar.HorizontalAlignment = steerNormalized switch
-                {
-                    < -0.1f => HorizontalAlignment.Left,
-                    > 0.1f => HorizontalAlignment.Right,
-                    _ => HorizontalAlignment.Center
-                };
+                var gridWidth = steerGrid.ActualWidth;
+                var barWidth = _steerBar.Width;
+                
+                // Calculate position: center is 0, full left (-127) is at left edge, full right (127) is at right edge
+                var centerOffset = (gridWidth - barWidth) / 2;
+                var newMargin = new Thickness(centerOffset * steerNormalized + centerOffset - centerOffset, 0, 0, 0);
+                _steerBar.Margin = newMargin;
+                _steerBar.HorizontalAlignment = HorizontalAlignment.Left;
             }
             
-            // Timing Card
-            RaceTimeText.Text = $"{state.CurrentRaceTime:F1}s";
-            CurrentLapTimeText.Text = $"{state.RaceTiming.CurrentLap:F1}s";
+            // Car Orientation Card - Yaw, Pitch, Roll (convert radians to degrees)
+            YawText.Text = $"{RadToDeg(state.Motion.Yaw):F1}°";
+            PitchText.Text = $"{RadToDeg(state.Motion.Pitch):F1}°";
+            RollText.Text = $"{RadToDeg(state.Motion.Roll):F1}°";
+            
+            // Timing Card - Format as hhhh:mm:ss.SSS
+            RaceTimeText.Text = FormatTimeHMS(state.CurrentRaceTime);
+            CurrentLapTimeText.Text = FormatTimeHMS(state.RaceTiming.CurrentLap);
+            
+            // Shift cue indicators based on RPM and Speed
+            UpdateShiftCues(state);
             
             // Update status using cached brushes
             StatusText.Text = state.IsRaceOn ? "Racing" : "Not Racing";
@@ -141,6 +150,27 @@ namespace HorizonPulse
             
             // Populate inspector panel with extended telemetry
             UpdateInspectorPanel(state);
+        }
+
+        private void UpdateShiftCues(RuntimeTelemetryState state)
+        {
+            var rpm = state.Rpm;
+            var maxRpm = state.Engine.MaxRpm > 0 ? state.Engine.MaxRpm : 8000f;
+            var idleRpm = state.Engine.IdleRpm > 0 ? state.Engine.IdleRpm : 1000f;
+            var gear = state.Gear;
+            var speed = state.SpeedKph;
+            
+            // Shift up cue: when RPM is near redline (>90% of max) and not in neutral
+            var shiftUpThreshold = maxRpm * 0.92f;
+            var shouldShiftUp = gear > 0 && rpm >= shiftUpThreshold;
+            
+            // Shift down cue: when RPM drops below optimal range (<35% between idle and max)
+            var rpmRange = maxRpm - idleRpm;
+            var shiftDownThreshold = idleRpm + rpmRange * 0.35f;
+            var shouldShiftDown = gear > 1 && rpm <= shiftDownThreshold && speed > 5f;
+            
+            ShiftUpCue.Visibility = shouldShiftUp ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            ShiftDownCue.Visibility = shouldShiftDown ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
         }
 
         private void UpdateInspectorPanel(RuntimeTelemetryState state)
@@ -153,13 +183,6 @@ namespace HorizonPulse
             // For now, we keep the rebuild but it will be throttled by the UI timer
             
             panel.Children.Clear();
-            
-            // Add tire temperatures
-            AddInspectorRow(panel, "Tire Temp FL", $"{state.Surface.TireTempFrontLeft:F1}°C");
-            AddInspectorRow(panel, "Tire Temp FR", $"{state.Surface.TireTempFrontRight:F1}°C");
-            AddInspectorRow(panel, "Tire Temp RL", $"{state.Surface.TireTempRearLeft:F1}°C");
-            AddInspectorRow(panel, "Tire Temp RR", $"{state.Surface.TireTempRearRight:F1}°C");
-            AddInspectorDivider(panel);
             
             // Add suspension travel
             AddInspectorRow(panel, "Susp FL", $"{state.Suspension.NormalizedFrontLeft:P0}");
@@ -260,6 +283,20 @@ namespace HorizonPulse
             var secs = seconds % 60;
             return $"{mins}:{secs:F3}";
         }
+
+        private string FormatTimeHMS(float totalSeconds)
+        {
+            if (totalSeconds <= 0 || float.IsNaN(totalSeconds))
+                return "----:--:--.---";
+            
+            var hours = (int)(totalSeconds / 3600);
+            var minutes = (int)((totalSeconds % 3600) / 60);
+            var seconds = totalSeconds % 60;
+            
+            return $"{hours:D4}:{minutes:D2}:{seconds:06.3f}";
+        }
+
+        private static double RadToDeg(float radians) => radians * 180.0 / Math.PI;
 
         protected override void OnClosed(EventArgs e)
         {

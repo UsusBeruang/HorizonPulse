@@ -180,7 +180,7 @@
 
                                 <Rectangle Style="{StaticResource Divider}"/>
 
-                                <!-- RPM + Gear side by side -->
+                                <!-- RPM + Gear side by side with shift cue -->
                                 <Grid Margin="0,0,0,14">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -191,12 +191,22 @@
                                         <TextBlock Name="RpmText" Text="0.0"
                                                    Style="{StaticResource Value}"
                                                    Foreground="{StaticResource AccentAmber}"/>
+                                        <!-- Shift up cue indicator -->
+                                        <TextBlock Name="ShiftUpCue" Text="⬆ SHIFT UP" 
+                                                   FontFamily="Consolas" FontSize="9"
+                                                   Foreground="{StaticResource AccentRed}"
+                                                   Visibility="Collapsed" Margin="0,2,0,0"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="GEAR" Style="{StaticResource Label}"/>
                                         <TextBlock Name="GearText" Text="–"
                                                    Style="{StaticResource Value}"
                                                    FontSize="28"/>
+                                        <!-- Shift down cue indicator -->
+                                        <TextBlock Name="ShiftDownCue" Text="⬇ SHIFT DOWN" 
+                                                   FontFamily="Consolas" FontSize="9"
+                                                   Foreground="{StaticResource AccentGreen}"
+                                                   Visibility="Collapsed" Margin="0,2,0,0"/>
                                     </StackPanel>
                                 </Grid>
 
@@ -285,6 +295,40 @@
                                                Foreground="{StaticResource AccentAmber}"
                                                VerticalAlignment="Bottom" Margin="12,0,0,0"/>
                                 </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- ── CAR ORIENTATION CARD ── -->
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="CAR ORIENTATION" Style="{StaticResource SectionHeader}"
+                                           Margin="0,0,0,14"/>
+
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="YAW" Style="{StaticResource Label}"/>
+                                        <TextBlock Name="YawText" Text="0.0°"
+                                                   Style="{StaticResource Value}" FontSize="16"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="PITCH" Style="{StaticResource Label}"/>
+                                        <TextBlock Name="PitchText" Text="0.0°"
+                                                   Style="{StaticResource Value}" FontSize="16"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <StackPanel>
+                                    <TextBlock Text="ROLL" Style="{StaticResource Label}"/>
+                                    <TextBlock Name="RollText" Text="0.0°"
+                                               Style="{StaticResource Value}" FontSize="16"
+                                               Foreground="{StaticResource AccentAmber}"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
