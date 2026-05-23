@@ -8,9 +8,4 @@
         <UseWPF>true</UseWPF>
     </PropertyGroup>
 
-    <ItemGroup>
-      <Compile Remove="Models\Telemetry\DamageTelemetry.cs" />
-      <Compile Remove="Models\Telemetry\PositionTelemetry.cs" />
-    </ItemGroup>
-
 </Project>
