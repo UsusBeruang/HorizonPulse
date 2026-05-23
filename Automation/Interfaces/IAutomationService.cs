@@ -12,22 +12,12 @@ public interface IAutomationService : IDisposable
     bool IsEnabled { get; }
 
     /// <summary>
-    /// Gets a value indicating whether throttle assist is active.
-    /// </summary>
-    bool IsThrottleAssistEnabled { get; }
-
-    /// <summary>
-    /// Gets a value indicating whether steering assist is active.
-    /// </summary>
-    bool IsSteeringAssistEnabled { get; }
-
-    /// <summary>
     /// Gets the current virtual throttle output (0-100).
     /// </summary>
     float CurrentThrottleOutput { get; }
 
     /// <summary>
-    /// Gets the current brake telemetry value (0-100).
+    /// Gets the current brake telemetry value (0-1 normalized).
     /// </summary>
     float CurrentBrakeInput { get; }
 
@@ -43,21 +33,10 @@ public interface IAutomationService : IDisposable
 
     /// <summary>
     /// Enables or disables the automation system.
+    /// Automatically connects/disconnects controller and starts/stops the loop.
     /// </summary>
     /// <param name="enabled">Whether to enable automation.</param>
     void SetEnabled(bool enabled);
-
-    /// <summary>
-    /// Enables or disables throttle assist.
-    /// </summary>
-    /// <param name="enabled">Whether to enable throttle assist.</param>
-    void SetThrottleAssistEnabled(bool enabled);
-
-    /// <summary>
-    /// Enables or disables steering assist.
-    /// </summary>
-    /// <param name="enabled">Whether to enable steering assist.</param>
-    void SetSteeringAssistEnabled(bool enabled);
 
     /// <summary>
     /// Sets the steering randomness intensity (0-1 scale).
@@ -73,23 +52,9 @@ public interface IAutomationService : IDisposable
     void SetThrottleSmoothing(float factor);
 
     /// <summary>
-    /// Starts the automation loop.
+    /// Updates automation state from telemetry.
+    /// Called by telemetry pipeline at high frequency (~200 PPS).
     /// </summary>
-    void Start();
-
-    /// <summary>
-    /// Stops the automation loop.
-    /// </summary>
-    void Stop();
-
-    /// <summary>
-    /// Attempts to connect the virtual controller.
-    /// </summary>
-    /// <returns>True if connection was successful.</returns>
-    bool ConnectController();
-
-    /// <summary>
-    /// Disconnects the virtual controller.
-    /// </summary>
-    void DisconnectController();
+    /// <param name="telemetryState">Current runtime telemetry state.</param>
+    void UpdateFromTelemetry(Telemetry.Runtime.RuntimeTelemetryState telemetryState);
 }

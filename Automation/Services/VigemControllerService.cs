@@ -13,177 +13,135 @@ using VigemXboxButton = Nefarius.ViGEm.Client.Targets.Xbox360.Xbox360Button;
 /// <summary>
 /// ViGEm virtual controller service implementation.
 /// Provides Xbox 360 controller emulation for input simulation.
-/// Thread-safe and handles connection failures gracefully.
+/// Simplified for high-performance automation use.
 /// </summary>
-public sealed class VigemControllerService : IVigemControllerService
+public sealed class VigemControllerService : IVigemControllerService, IDisposable
 {
-    private readonly object _lock = new();
     private ViGEmClient? _client;
     private IXbox360Controller? _controller;
     private bool _isDisposed;
     private bool _isConnected;
 
-    // Current controller state for incremental updates
-    private byte _leftTrigger;
-    private byte _rightTrigger;
-    private byte _leftStickX;
-    private byte _leftStickY;
-    private byte _rightStickX;
-    private byte _rightStickY;
-
     /// <inheritdoc/>
-    public bool IsConnected
-    {
-        // ViGEm's IXbox360Controller doesn't expose an IsConnected property, 
-        // so we rely solely on our internal tracking flag.
-        get { lock (_lock) return _isConnected; }
-    }
+    public bool IsConnected => _isConnected;
 
     public VigemControllerService()
     {
-        ResetState();
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Connects to the ViGEm bus and initializes the virtual controller.
+    /// </summary>
+    /// <returns>True if connection was successful.</returns>
     public bool Connect()
     {
-        lock (_lock)
-        {
-            if (_isDisposed) return false;
-            if (_isConnected) return true;
+        if (_isDisposed) return false;
+        if (_isConnected) return true;
 
-            try
-            {
-                _client = new ViGEmClient();
-                _controller = _client.CreateXbox360Controller();
-                _controller.Connect();
-                
-                _isConnected = true;
-                ResetState();
-                return true;
-            }
-            catch (Exception ex) when (
-                ex is DllNotFoundException || 
-                ex is TargetInvocationException ||
-                ex is InvalidOperationException)
-            {
-                _isConnected = false;
-                Cleanup();
-                return false;
-            }
-            catch
-            {
-                _isConnected = false;
-                Cleanup();
-                return false;
-            }
+        try
+        {
+            _client = new ViGEmClient();
+            _controller = _client.CreateXbox360Controller();
+            _controller.Connect();
+            
+            _isConnected = true;
+            Reset();
+            return true;
+        }
+        catch (Exception ex) when (
+            ex is DllNotFoundException || 
+            ex is TargetInvocationException ||
+            ex is InvalidOperationException)
+        {
+            _isConnected = false;
+            Cleanup();
+            return false;
+        }
+        catch
+        {
+            _isConnected = false;
+            Cleanup();
+            return false;
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Disconnects from the ViGEm bus and releases resources.
+    /// </summary>
     public void Disconnect()
     {
-        lock (_lock)
+        if (!_isConnected) return;
+
+        try
         {
-            if (!_isConnected) return;
-
-            try
-            {
-                Reset();
-            }
-            catch
-            {
-                // Ignore errors during disconnect
-            }
-
-            Cleanup();
-            _isConnected = false;
+            Reset();
         }
+        catch
+        {
+            // Ignore errors during disconnect
+        }
+
+        Cleanup();
+        _isConnected = false;
     }
 
     /// <inheritdoc/>
     public void SetLeftTrigger(byte value)
     {
-        lock (_lock)
-        {
-            if (!_isConnected || _controller == null) return;
-            
-            _leftTrigger = value;
-            _controller.SetSliderValue(Xbox360Slider.LeftTrigger, value);
-        }
+        if (!_isConnected || _controller == null) return;
+        _controller.SetSliderValue(Xbox360Slider.LeftTrigger, value);
     }
 
     /// <inheritdoc/>
     public void SetRightTrigger(byte value)
     {
-        lock (_lock)
-        {
-            if (!_isConnected || _controller == null) return;
-            
-            _rightTrigger = value;
-            _controller.SetSliderValue(Xbox360Slider.RightTrigger, value);
-        }
+        if (!_isConnected || _controller == null) return;
+        _controller.SetSliderValue(Xbox360Slider.RightTrigger, value);
     }
 
     /// <inheritdoc/>
     public void SetLeftStick(byte x, byte y)
     {
-        lock (_lock)
-        {
-            if (!_isConnected || _controller == null) return;
-            
-            _leftStickX = x;
-            _leftStickY = y;
-            _controller.SetAxisValue(Xbox360Axis.LeftThumbX, MapByteToShort(x));
-            _controller.SetAxisValue(Xbox360Axis.LeftThumbY, MapByteToShort(y));
-        }
+        if (!_isConnected || _controller == null) return;
+        _controller.SetAxisValue(Xbox360Axis.LeftThumbX, MapByteToShort(x));
+        _controller.SetAxisValue(Xbox360Axis.LeftThumbY, MapByteToShort(y));
     }
 
     /// <inheritdoc/>
     public void SetRightStick(byte x, byte y)
     {
-        lock (_lock)
-        {
-            if (!_isConnected || _controller == null) return;
-            
-            _rightStickX = x;
-            _rightStickY = y;
-            _controller.SetAxisValue(Xbox360Axis.RightThumbX, MapByteToShort(x));
-            _controller.SetAxisValue(Xbox360Axis.RightThumbY, MapByteToShort(y));
-        }
+        if (!_isConnected || _controller == null) return;
+        _controller.SetAxisValue(Xbox360Axis.RightThumbX, MapByteToShort(x));
+        _controller.SetAxisValue(Xbox360Axis.RightThumbY, MapByteToShort(y));
     }
 
     /// <inheritdoc/>
     public void SetButton(Interfaces.Xbox360Button button, bool isPressed)
     {
-        lock (_lock)
+        if (!_isConnected || _controller == null) return;
+
+        // Map HorizonPulse Interfaces enum to ViGEm enum
+        var vigemButton = button switch
         {
-            if (!_isConnected || _controller == null) return;
+            Interfaces.Xbox360Button.Up => VigemXboxButton.Up,
+            Interfaces.Xbox360Button.Down => VigemXboxButton.Down,
+            Interfaces.Xbox360Button.Left => VigemXboxButton.Left,
+            Interfaces.Xbox360Button.Right => VigemXboxButton.Right,
+            Interfaces.Xbox360Button.Start => VigemXboxButton.Start,
+            Interfaces.Xbox360Button.Back => VigemXboxButton.Back,
+            Interfaces.Xbox360Button.LeftThumb => VigemXboxButton.LeftThumb,
+            Interfaces.Xbox360Button.RightThumb => VigemXboxButton.RightThumb,
+            Interfaces.Xbox360Button.LeftShoulder => VigemXboxButton.LeftShoulder,
+            Interfaces.Xbox360Button.RightShoulder => VigemXboxButton.RightShoulder,
+            Interfaces.Xbox360Button.A => VigemXboxButton.A,
+            Interfaces.Xbox360Button.B => VigemXboxButton.B,
+            Interfaces.Xbox360Button.X => VigemXboxButton.X,
+            Interfaces.Xbox360Button.Y => VigemXboxButton.Y,
+            Interfaces.Xbox360Button.Guide => VigemXboxButton.Guide,
+            _ => throw new ArgumentOutOfRangeException(nameof(button))
+        };
 
-            // Map HorizonPulse Interfaces enum to ViGEm enum
-            var vigemButton = button switch
-            {
-                Interfaces.Xbox360Button.Up => VigemXboxButton.Up,
-                Interfaces.Xbox360Button.Down => VigemXboxButton.Down,
-                Interfaces.Xbox360Button.Left => VigemXboxButton.Left,
-                Interfaces.Xbox360Button.Right => VigemXboxButton.Right,
-                Interfaces.Xbox360Button.Start => VigemXboxButton.Start,
-                Interfaces.Xbox360Button.Back => VigemXboxButton.Back,
-                Interfaces.Xbox360Button.LeftThumb => VigemXboxButton.LeftThumb,
-                Interfaces.Xbox360Button.RightThumb => VigemXboxButton.RightThumb,
-                Interfaces.Xbox360Button.LeftShoulder => VigemXboxButton.LeftShoulder,
-                Interfaces.Xbox360Button.RightShoulder => VigemXboxButton.RightShoulder,
-                Interfaces.Xbox360Button.A => VigemXboxButton.A,
-                Interfaces.Xbox360Button.B => VigemXboxButton.B,
-                Interfaces.Xbox360Button.X => VigemXboxButton.X,
-                Interfaces.Xbox360Button.Y => VigemXboxButton.Y,
-                Interfaces.Xbox360Button.Guide => VigemXboxButton.Guide,
-                _ => throw new ArgumentOutOfRangeException(nameof(button))
-            };
-
-            // ViGEm expects the button AND a boolean for Pressed (true) or Released (false)
-            _controller.SetButtonState(vigemButton, isPressed);
-        }
+        _controller.SetButtonState(vigemButton, isPressed);
     }
 
     /// <inheritdoc/>
@@ -197,46 +155,38 @@ public sealed class VigemControllerService : IVigemControllerService
     /// <inheritdoc/>
     public void Reset()
     {
-        lock (_lock)
-        {
-            ResetState();
-            
-            if (!_isConnected || _controller == null) return;
+        if (!_isConnected || _controller == null) return;
 
-            try
+        try
+        {
+            // Reset Triggers
+            _controller.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
+            _controller.SetSliderValue(Xbox360Slider.RightTrigger, 0);
+            
+            // 0 is perfectly centered in a 'short' data type
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
+            _controller.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
+            _controller.SetAxisValue(Xbox360Axis.RightThumbX, 0);
+            _controller.SetAxisValue(Xbox360Axis.RightThumbY, 0);
+            
+            // Clear all buttons
+            foreach (VigemXboxButton b in Enum.GetValues(typeof(VigemXboxButton)))
             {
-                // Reset Triggers
-                _controller.SetSliderValue(Xbox360Slider.LeftTrigger, 0);
-                _controller.SetSliderValue(Xbox360Slider.RightTrigger, 0);
-                
-                // 0 is perfectly centered in a 'short' data type
-                _controller.SetAxisValue(Xbox360Axis.LeftThumbX, 0);
-                _controller.SetAxisValue(Xbox360Axis.LeftThumbY, 0);
-                _controller.SetAxisValue(Xbox360Axis.RightThumbX, 0);
-                _controller.SetAxisValue(Xbox360Axis.RightThumbY, 0);
-                
-                // Clear all buttons
-                foreach (VigemXboxButton b in Enum.GetValues(typeof(VigemXboxButton)))
-                {
-                    _controller.SetButtonState(b, false);
-                }
+                _controller.SetButtonState(b, false);
             }
-            catch
-            {
-                // Ignore errors during reset
-            }
+        }
+        catch
+        {
+            // Ignore errors during reset
         }
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        lock (_lock)
-        {
-            if (_isDisposed) return;
-            Disconnect();
-            _isDisposed = true;
-        }
+        if (_isDisposed) return;
+        Disconnect();
+        _isDisposed = true;
     }
 
     private void Cleanup()
@@ -259,16 +209,6 @@ public sealed class VigemControllerService : IVigemControllerService
         {
             // Ignore cleanup errors
         }
-    }
-
-    private void ResetState()
-    {
-        _leftTrigger = 0;
-        _rightTrigger = 0;
-        _leftStickX = 128; // 128 represents center in 0-255 byte math
-        _leftStickY = 128;
-        _rightStickX = 128;
-        _rightStickY = 128;
     }
 
     /// <summary>

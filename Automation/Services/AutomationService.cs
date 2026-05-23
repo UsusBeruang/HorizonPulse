@@ -1,403 +1,290 @@
 using System;
 using System.Diagnostics;
 using System.Threading;
+using System.Threading.Tasks;
 using HorizonPulse.Automation.Interfaces;
-using HorizonPulse.Automation.Models;
 using HorizonPulse.Telemetry.Runtime;
 
 namespace HorizonPulse.Automation.Services;
 
 /// <summary>
 /// Main automation service that coordinates throttle and steering assist.
-/// Reads telemetry, calculates outputs, and sends controller inputs via ViGEm.
-/// Thread-safe, runs on background thread, and integrates with existing telemetry pipeline.
+/// High-performance, lock-free design optimized for ~200 PPS telemetry updates.
+/// Uses atomic state updates and independent controller output loop.
 /// </summary>
 public sealed class AutomationService : IAutomationService
 {
-    private readonly object _lock = new();
     private readonly VigemControllerService _vigemService;
-    private readonly ThrottleAssistService _throttleService;
-    private readonly SteeringAssistService _steeringService;
-    private readonly AutomationState _state;
-    private AutomationSettings _settings;
-
-    private Thread? _automationThread;
-    private CancellationTokenSource? _cancellationTokenSource;
-    private bool _isDisposed;
-    private bool _isRunning;
-
-    // Process tracking
-    private readonly Stopwatch _processCheckTimer = new();
-    private bool _isTargetGameRunning = false;
-    private bool _wasTargetGameRunning = false;
-    private const string TargetProcessName = "forzahorizon6"; // .exe is automatically implied by GetProcessesByName
-
-    // Conversion constants
+    
+    // Atomic state - single source of truth
+    private volatile bool _isEnabled;
+    private volatile bool _isControllerConnected;
+    private volatile float _currentThrottleOutput;
+    private volatile float _currentBrakeInput;
+    private volatile float _currentSteeringCorrection;
+    
+    // Settings (modified infrequently, safe to read without lock)
+    private float _steeringRandomness = 0.3f;
+    private float _throttleSmoothing = 0.7f;
+    
+    // Controller output loop
+    private CancellationTokenSource? _controllerLoopCts;
+    private Task? _controllerLoopTask;
+    
+    // Steering state (updated per-telemetry call, no locking needed)
+    private float _steeringTarget;
+    private float _steeringCurrent;
+    private readonly Random _random = new();
+    private readonly Stopwatch _steeringTimer = new();
+    private const int SteeringUpdateIntervalMs = 100;
+    
+    // Throttle state
+    private float _lastThrottleOutput;
+    
+    // Constants
+    private const byte TriggerMaxRaw = 255;
     private const float SteeringCenter = 128f;
     private const float SteeringMaxRaw = 127f;
-    private const float TriggerMaxRaw = 255f;
-
+    
     /// <inheritdoc/>
-    public bool IsEnabled => _state.IsEnabled;
-
+    public bool IsEnabled => _isEnabled;
+    
     /// <inheritdoc/>
-    public bool IsThrottleAssistEnabled => _state.IsThrottleAssistEnabled;
-
+    public float CurrentThrottleOutput => _currentThrottleOutput;
+    
     /// <inheritdoc/>
-    public bool IsSteeringAssistEnabled => _state.IsSteeringAssistEnabled;
-
+    public float CurrentBrakeInput => _currentBrakeInput;
+    
     /// <inheritdoc/>
-    public float CurrentThrottleOutput => _state.CurrentThrottleOutput;
-
+    public float CurrentSteeringCorrection => _currentSteeringCorrection;
+    
     /// <inheritdoc/>
-    public float CurrentBrakeInput => _state.CurrentBrakeInput;
-
-    /// <inheritdoc/>
-    public float CurrentSteeringCorrection => _state.CurrentSteeringCorrection;
-
-    /// <inheritdoc/>
-    public bool IsControllerConnected => _vigemService.IsConnected;
+    public bool IsControllerConnected => _isControllerConnected;
 
     /// <summary>
     /// Initializes a new instance of the automation service.
     /// </summary>
-    /// <param name="settings">Initial automation settings.</param>
-    public AutomationService(AutomationSettings? settings = null)
+    public AutomationService()
     {
-        _settings = settings?.Clone() ?? new AutomationSettings();
         _vigemService = new VigemControllerService();
-        _throttleService = new ThrottleAssistService(_settings.ThrottleSmoothing);
-        _steeringService = new SteeringAssistService(
-            _settings.SteeringRandomness,
-            _settings.MaxSteeringCorrection,
-            _settings.SteeringUpdateIntervalMs);
-        
-        _state = new AutomationState();
-        
-        // Start process timer
-        _processCheckTimer.Start();
-        
-        // Apply initial settings
-        ApplySettingsToServices();
+        _steeringTimer.Start();
     }
 
     /// <inheritdoc/>
     public void SetEnabled(bool enabled)
     {
-        lock (_lock)
+        if (_isEnabled == enabled)
+            return;
+        
+        _isEnabled = enabled;
+        
+        if (enabled)
         {
-            _settings.IsEnabled = enabled;
-            _state.IsEnabled = enabled;
-            
-            if (!enabled)
+            // Enable: connect controller and start loops
+            if (!_vigemService.Connect())
             {
-                // Immediately reset outputs when disabled
-                _throttleService.Reset();
-                _steeringService.Reset();
-                _vigemService.Reset();
-                _vigemService.SendReport();
+                _isEnabled = false;
+                return;
             }
+            
+            _isControllerConnected = true;
+            
+            // Start controller output loop
+            StartControllerLoop();
         }
-    }
-
-    /// <inheritdoc/>
-    public void SetThrottleAssistEnabled(bool enabled)
-    {
-        lock (_lock)
+        else
         {
-            _settings.IsThrottleAssistEnabled = enabled;
-            _state.IsThrottleAssistEnabled = enabled;
-            _throttleService.IsEnabled = enabled;
+            // Disable: stop loops and disconnect
+            StopControllerLoop();
             
-            if (!enabled)
-            {
-                _throttleService.Reset();
-            }
-        }
-    }
-
-    /// <inheritdoc/>
-    public void SetSteeringAssistEnabled(bool enabled)
-    {
-        lock (_lock)
-        {
-            _settings.IsSteeringAssistEnabled = enabled;
-            _state.IsSteeringAssistEnabled = enabled;
-            _steeringService.IsEnabled = enabled;
+            // Reset all outputs immediately
+            ResetOutputs();
             
-            if (!enabled)
-            {
-                _steeringService.Reset();
-            }
+            // Disconnect controller
+            _vigemService.Disconnect();
+            _isControllerConnected = false;
         }
     }
 
     /// <inheritdoc/>
     public void SetSteeringRandomness(float intensity)
     {
-        lock (_lock)
-        {
-            _settings.SteeringRandomness = intensity;
-            _steeringService.RandomnessIntensity = intensity;
-        }
+        _steeringRandomness = Math.Clamp(intensity, 0f, 1f);
     }
 
     /// <inheritdoc/>
     public void SetThrottleSmoothing(float factor)
     {
-        lock (_lock)
-        {
-            _settings.ThrottleSmoothing = factor;
-            _throttleService.SmoothingFactor = factor;
-        }
+        _throttleSmoothing = Math.Clamp(factor, 0f, 1f);
     }
 
     /// <inheritdoc/>
-    public void Start()
-    {
-        lock (_lock)
-        {
-            if (_isRunning)
-                return;
-
-            _cancellationTokenSource = new CancellationTokenSource();
-            _automationThread = new Thread(AutomationLoop)
-            {
-                Name = "AutomationLoop",
-                IsBackground = true,
-                Priority = ThreadPriority.BelowNormal
-            };
-            
-            _state.IsRunning = true;
-            _isRunning = true;
-            _automationThread.Start(_cancellationTokenSource.Token);
-        }
-    }
-
-    /// <inheritdoc/>
-    public void Stop()
-    {
-        lock (_lock)
-        {
-            if (!_isRunning)
-                return;
-
-            _cancellationTokenSource?.Cancel();
-            
-            // Wait for thread to exit (with timeout)
-            _automationThread?.Join(2000);
-            
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = null;
-            _automationThread = null;
-            _isRunning = false;
-            _state.IsRunning = false;
-            
-            // Reset outputs
-            _throttleService.Reset();
-            _steeringService.Reset();
-            _vigemService.Reset();
-            _vigemService.SendReport();
-        }
-    }
-
-    /// <inheritdoc/>
-    public bool ConnectController()
-    {
-        lock (_lock)
-        {
-            if (_vigemService.IsConnected)
-                return true;
-
-            bool connected = _vigemService.Connect();
-            _state.IsControllerConnected = connected;
-            return connected;
-        }
-    }
-
-    /// <inheritdoc/>
-    public void DisconnectController()
-    {
-        lock (_lock)
-        {
-            _vigemService.Disconnect();
-            _state.IsControllerConnected = false;
-        }
-    }
-
-    /// <summary>
-    /// Updates automation state from telemetry.
-    /// Called by the automation loop - reads from existing telemetry pipeline.
-    /// </summary>
-    /// <param name="telemetryState">Current runtime telemetry state.</param>
     public void UpdateFromTelemetry(RuntimeTelemetryState telemetryState)
     {
-        if (!_settings.IsEnabled)
+        // Fast path: if disabled, do nothing
+        if (!_isEnabled)
             return;
-
-        // Read brake input from telemetry (already normalized 0-1)
-        float brakePercent = telemetryState.BrakeInput * 100f;
         
-        // Update state
-        _state.CurrentBrakeInput = brakePercent;
-
-        // Calculate throttle output if enabled
-        if (_settings.IsThrottleAssistEnabled)
+        // Read brake input from telemetry (already normalized 0-1)
+        float brakeInput = telemetryState.BrakeInput;
+        _currentBrakeInput = brakeInput;
+        
+        // Calculate throttle output: brake 1.0 => RT 0, brake 0.0 => RT 255
+        float targetThrottle = 1f - brakeInput;
+        
+        // Apply smoothing
+        if (_throttleSmoothing > 0f)
         {
-            float throttleOutput = _throttleService.UpdateFromTelemetry(telemetryState);
-            _state.CurrentThrottleOutput = throttleOutput;
+            _lastThrottleOutput = Lerp(_lastThrottleOutput, targetThrottle, 1f - _throttleSmoothing);
         }
         else
         {
-            _state.CurrentThrottleOutput = 0f;
+            _lastThrottleOutput = targetThrottle;
         }
-
-        // Calculate steering correction if enabled
-        if (_settings.IsSteeringAssistEnabled)
+        
+        _currentThrottleOutput = _lastThrottleOutput * 100f; // Store as percentage for UI
+        
+        // Calculate steering correction (random jitter between -5 and +5)
+        if (_steeringTimer.ElapsedMilliseconds >= SteeringUpdateIntervalMs)
         {
-            float steeringCorrection = _steeringService.Update();
-            _state.CurrentSteeringCorrection = steeringCorrection;
+            _steeringTimer.Restart();
+            
+            // Generate new random correction in range [-5, +5] scaled by randomness
+            float range = 5f * _steeringRandomness;
+            float correction = (float)(_random.NextDouble() * 2f - 1f) * range;
+            _steeringTarget = Math.Clamp(correction, -5f, 5f);
         }
-        else
-        {
-            _state.CurrentSteeringCorrection = 0f;
-        }
-
-        // Send controller inputs
-        SendControllerInputs();
+        
+        // Smoothly interpolate toward target
+        _steeringCurrent = Lerp(_steeringCurrent, _steeringTarget, 0.1f);
+        _currentSteeringCorrection = _steeringCurrent;
+        
+        // Note: Controller output is sent independently by the controller loop
+        // This method only updates shared state - no blocking operations
     }
 
     /// <inheritdoc/>
     public void Dispose()
     {
-        lock (_lock)
-        {
-            if (_isDisposed)
-                return;
-
-            Stop();
-            _throttleService.Dispose();
-            _steeringService.Dispose();
-            _vigemService.Dispose();
-            
-            _isDisposed = true;
-        }
+        SetEnabled(false);
+        _steeringTimer.Stop();
+        _vigemService.Dispose();
     }
 
-    /// <summary>
-    /// Gets the current automation state snapshot for UI binding.
-    /// </summary>
-    public AutomationState GetStateSnapshot() => _state.Snapshot();
-
-    private void AutomationLoop(object? obj)
+    private void StartControllerLoop()
     {
-        var cancellationToken = (CancellationToken)obj!;
-        const int updateIntervalMs = 16; // ~60 Hz update rate
+        _controllerLoopCts = new CancellationTokenSource();
+        var token = _controllerLoopCts.Token;
         
-        var lastUpdate = Stopwatch.GetTimestamp();
+        _controllerLoopTask = Task.Run(async () => await ControllerOutputLoop(token), token);
+    }
+
+    private void StopControllerLoop()
+    {
+        if (_controllerLoopCts == null)
+            return;
+        
+        _controllerLoopCts.Cancel();
+        
+        try
+        {
+            _controllerLoopTask?.Wait(TimeSpan.FromSeconds(2));
+        }
+        catch
+        {
+            // Ignore timeout
+        }
+        
+        _controllerLoopCts?.Dispose();
+        _controllerLoopCts = null;
+        _controllerLoopTask = null;
+    }
+
+    private async Task ControllerOutputLoop(CancellationToken cancellationToken)
+    {
+        // Target 200 Hz (5ms interval), minimum 120 Hz (8.33ms)
+        const int targetIntervalMs = 5;
+        var sw = Stopwatch.StartNew();
+        TimeSpan lastSendTime = TimeSpan.Zero;
         
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                // Rate-limit the loop
-                var now = Stopwatch.GetTimestamp();
-                var elapsedMs = (now - lastUpdate) * 1000.0 / Stopwatch.Frequency;
-                
-                if (elapsedMs >= updateIntervalMs)
+                // Check if it's time to send
+                if (sw.Elapsed - lastSendTime >= TimeSpan.FromMilliseconds(targetIntervalMs))
                 {
-                    lastUpdate = now;
+                    lastSendTime = sw.Elapsed;
                     
-                    // Note: Telemetry updates come from external subscription
-                    // This loop primarily handles controller output timing
-                    if (_settings.IsEnabled && _vigemService.IsConnected)
-                    {
-                        // Ensure controller state is sent regularly
-                        _vigemService.SendReport();
-                    }
+                    // Send controller report with current state
+                    SendControllerReport();
                 }
                 
-                Thread.Sleep(1); // Small sleep to prevent CPU spinning
+                // Small delay to prevent CPU spinning
+                // At 200 Hz target, we need tight loop but not 100% CPU
+                await Task.Delay(1, cancellationToken);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore unexpected errors in background loop
+                // Continue loop on non-fatal errors
+                _ = ex; // Suppress unused warning
             }
         }
     }
 
-    private void SendControllerInputs()
+    private void SendControllerReport()
     {
-        if (!_vigemService.IsConnected)
+        if (!_isControllerConnected)
             return;
-
-        // 1. Throttled Process Check (Every 2000ms to save CPU)
-        if (_processCheckTimer.ElapsedMilliseconds > 2000)
-        {
-            _isTargetGameRunning = Process.GetProcessesByName(TargetProcessName).Length > 0;
-            _processCheckTimer.Restart();
-        }
-
-        // 2. State Handling based on Process
-        if (!_isTargetGameRunning)
-        {
-            // If the game just closed, we must reset the controller so it doesn't 
-            // leave a stuck throttle/steering input broadcasting to Windows.
-            if (_wasTargetGameRunning)
-            {
-                _vigemService.Reset();
-                _wasTargetGameRunning = false;
-            }
-            return; // Abort sending new inputs
-        }
         
-        _wasTargetGameRunning = true;
-
-        // 3. Normal Execution (Game is running, even in background)
         try
         {
-            // Convert throttle (0-100) to trigger value (0-255)
-            byte triggerValue = (byte)Math.Clamp(
-                (_state.CurrentThrottleOutput / 100f) * TriggerMaxRaw,
-                0f, 255f);
-
-            // Convert steering correction (-5 to +5) to stick X offset
-            float steeringOffset = _state.CurrentSteeringCorrection * (SteeringMaxRaw / 5f) * 0.15f;
-            byte stickX = (byte)Math.Clamp(SteeringCenter + steeringOffset, 0f, 255f);
-
-            // Explicitly cast SteeringCenter to (byte) to fix the float-to-byte parameter error on the Y axis
-            byte stickY = (byte)SteeringCenter;
-
-            // Apply inputs (both are now guaranteed to be bytes)
-            _vigemService.SetRightTrigger(triggerValue);
-            _vigemService.SetLeftStick(stickX, stickY); 
-    
-            // Send the report
-            _vigemService.SendReport();
+            // Convert throttle (0-1) to RT value (0-255)
+            // brake 1.0 => RT 0, brake 0.0 => RT 255
+            byte rtValue = (byte)Math.Clamp(
+                (int)(_currentThrottleOutput / 100f * TriggerMaxRaw),
+                0, 255);
+            
+            // LT must remain 0 (requirement)
+            byte ltValue = 0;
+            
+            // Convert steering correction (-5 to +5) to left stick X
+            // Range: -5 => 0, 0 => 128, +5 => 255
+            float steeringOffset = _currentSteeringCorrection * (SteeringMaxRaw / 5f);
+            byte stickX = (byte)Math.Clamp(SteeringCenter + steeringOffset, 0, 255);
+            byte stickY = 128; // Centered
+            
+            // Apply inputs
+            _vigemService.SetLeftTrigger(ltValue);
+            _vigemService.SetRightTrigger(rtValue);
+            _vigemService.SetLeftStick(stickX, stickY);
+            
+            // ViGEm 1.21.256 sends immediately on Set* calls
+            // No explicit SendReport() needed
         }
-        catch
+        catch (Exception ex)
         {
-            // Handle ViGEm communication errors gracefully
-            _state.IsControllerConnected = false;
+            _isControllerConnected = false;
+            _ = ex; // Suppress unused warning
         }
     }
 
-    private void ApplySettingsToServices()
+    private void ResetOutputs()
     {
-        _throttleService.IsEnabled = _settings.IsThrottleAssistEnabled;
-        _throttleService.SmoothingFactor = _settings.ThrottleSmoothing;
+        _currentThrottleOutput = 0f;
+        _currentBrakeInput = 0f;
+        _currentSteeringCorrection = 0f;
+        _lastThrottleOutput = 0f;
+        _steeringCurrent = 0f;
+        _steeringTarget = 0f;
         
-        _steeringService.IsEnabled = _settings.IsSteeringAssistEnabled;
-        _steeringService.RandomnessIntensity = _settings.SteeringRandomness;
-        _steeringService.MaxCorrection = _settings.MaxSteeringCorrection;
-        _steeringService.UpdateIntervalMs = _settings.SteeringUpdateIntervalMs;
-        
-        _state.IsEnabled = _settings.IsEnabled;
-        _state.IsThrottleAssistEnabled = _settings.IsThrottleAssistEnabled;
-        _state.IsSteeringAssistEnabled = _settings.IsSteeringAssistEnabled;
+        // Reset controller hardware
+        _vigemService.Reset();
     }
+
+    private static float Lerp(float a, float b, float t) => a + (b - a) * t;
 }
