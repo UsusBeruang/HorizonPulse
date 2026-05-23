@@ -1,5 +1,5 @@
-using System.Net;
 using System.Net.Sockets;
+using System.Runtime.InteropServices;
 using HorizonPulse.Telemetry.Services;
 
 namespace HorizonPulse.Services

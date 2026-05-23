@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using HorizonPulse.Services;
 using HorizonPulse.Telemetry.Runtime;
@@ -86,12 +87,6 @@ namespace HorizonPulse
             // Update runtime state (thread-safe)
             _runtimeState.Update(telemetry);
             
-            // Check for high-priority events that need immediate attention
-            if (telemetry.Damage.HasCollision)
-            {
-                _pendingCollisionEvent = true;
-            }
-            
             // Mark UI update as pending - will be processed by timer
             _pendingUiUpdate = true;
         }
@@ -130,8 +125,8 @@ namespace HorizonPulse
                 // Center is 0, full left is -1, full right is 1
                 _steerBar.HorizontalAlignment = steerNormalized switch
                 {
-                    < -0.1 => HorizontalAlignment.Left,
-                    > 0.1 => HorizontalAlignment.Right,
+                    < -0.1f => HorizontalAlignment.Left,
+                    > 0.1f => HorizontalAlignment.Right,
                     _ => HorizontalAlignment.Center
                 };
             }
