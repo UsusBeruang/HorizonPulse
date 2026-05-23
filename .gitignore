@@ -1,31 +1,53 @@
 ```
-# Build artifacts
-bin/
-obj/
-*.dll
+# Compiled and build artifacts
 *.exe
+*.dll
 *.pdb
-*.config
+*.obj
+*.lib
+*.so
+*.dylib
+*.class
+*.pyc
+__pycache__/
+*.o
+*.a
+*.out
 
 # Dependencies
-packages/
 node_modules/
-*.nupkg
-
-# Logs
-*.log
-
-# User-specific files
-.vs/
-*.userprefs
-*.suo
-*.user
-*.sln.docstates
-
-# Environment specific
+venv/
+.venv/
 .env
 .env.local
-*.env.*
+.env.*
+target/
+.gradle/
+.mypy_cache/
+.pytest_cache/
+coverage/
+htmlcov/
+.coverage
+
+# Build outputs
+dist/
+build/
+bin/
+obj/
+Debug/
+Release/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # OS generated files
 .DS_Store
