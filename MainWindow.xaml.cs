@@ -1,11 +1,15 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using HorizonPulse.Services;
 using HorizonPulse.Telemetry.Runtime;
 using HorizonPulse.Automation.Services;
+using HorizonPulse.Settings;
+using HorizonPulse.Services.Hotkeys;
 
 namespace HorizonPulse
 {
@@ -14,6 +18,8 @@ namespace HorizonPulse
         private readonly TelemetryReceiver _telemetryReceiver;
         private readonly RuntimeTelemetryState _runtimeState;
         private readonly AutomationService _automationService;
+        private readonly SettingsService _settingsService;
+        private readonly HotkeyService _hotkeyService;
         
         // UI throttling optimized for 200 FPS telemetry
         private const int UiUpdateIntervalMs = 16; // ~60 FPS for UI
@@ -47,6 +53,11 @@ namespace HorizonPulse
             _telemetryReceiver = new TelemetryReceiver();
             _runtimeState = new RuntimeTelemetryState();
             _automationService = new AutomationService();
+            _settingsService = new SettingsService();
+            _hotkeyService = new HotkeyService();
+            
+            // Set window handle for hotkey registration
+            _hotkeyService.WindowHandle = new WindowInteropHelper(this).Handle;
             
             // Initialize cached brushes
             _greenBrush = new SolidColorBrush(Colors.Green);
@@ -98,7 +109,34 @@ namespace HorizonPulse
             _telemetryReceiver.Ingestion.TelemetryReceived += OnTelemetryReceived;
             _telemetryReceiver.Start(54321);
             
+            // Register global hotkey handler
+            SourceInitialized += OnSourceInitialized;
+            
             UpdateUI();
+        }
+
+        private void OnSourceInitialized(object? sender, EventArgs e)
+        {
+            // Add hook for WM_HOTKEY messages
+            var helper = new HwndSource(PresentationSource.FromVisual(this) as HwndSourceSource);
+            if (helper != null)
+            {
+                helper.AddHook(WndProc);
+            }
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WM_HOTKEY = 0x0312;
+            
+            if (msg == WM_HOTKEY)
+            {
+                var hotkeyId = wParam.ToInt32();
+                _hotkeyService.ProcessHotkeyMessage(hotkeyId);
+                handled = true;
+            }
+            
+            return IntPtr.Zero;
         }
 
         private void OnTelemetryReceived(ForzaHorizon6.Models.Runtime.TelemetryData telemetry)
@@ -308,6 +346,8 @@ namespace HorizonPulse
             _uiUpdateTimer?.Stop();
             _telemetryReceiver.Stop();
             _automationService.Dispose();
+            _hotkeyService.Dispose();
+            _settingsService.Dispose();
             base.OnClosed(e);
         }
     

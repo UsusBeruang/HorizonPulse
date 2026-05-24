@@ -1,63 +1,29 @@
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
+```
+# Build artifacts
 *.obj
-*.dll
 *.exe
-*.so
-*.class
-*.out
+*.dll
+*.pdb
+*.userprefs
+*.cache
+*.tmp
 
 # Dependencies
-.venv/
-venv/
-node_modules/
-dist/
-build/
-target/
-.gradle/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Environment
-.env
-.env.local
-*.env.*
-
-# Editors
-.vscode/
-.idea/
-*.userprefs
-*.user
-
-# OS generated files
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Coverage reports
-coverage/
-htmlcov/
-.coverage
-
-# Python specific
-*.py[cod]
-*$py.class
-*.so
-.Python
-*.egg-info/
-.eggs/
-
-# Build outputs
+packages/
 bin/
 obj/
-Debug/
-Release/
-x64/
-x86/
-arm64/
+
+# Logs
+*.log
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.userprefs
+
+# Environment specific settings
+.vs/
+.vshost.exe
+.vshost.exe.config
+```
