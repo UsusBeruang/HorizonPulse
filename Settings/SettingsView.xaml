@@ -1,0 +1,422 @@
+<UserControl x:Class="HorizonPulse.Settings.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="700" d:DesignWidth="800"
+             Background="#0A0C0F">
+
+    <UserControl.Resources>
+        <!-- Color Palette (matching MainWindow) -->
+        <SolidColorBrush x:Key="BgBase" Color="#0A0C0F" />
+        <SolidColorBrush x:Key="BgSurface" Color="#111418" />
+        <SolidColorBrush x:Key="BgCard" Color="#181C22" />
+        <SolidColorBrush x:Key="BgCardHover" Color="#1E242C" />
+        <SolidColorBrush x:Key="AccentGreen" Color="#00E676" />
+        <SolidColorBrush x:Key="AccentAmber" Color="#FFB300" />
+        <SolidColorBrush x:Key="AccentRed" Color="#FF3D3D" />
+        <SolidColorBrush x:Key="Border" Color="#252B35" />
+        <SolidColorBrush x:Key="BorderStrong" Color="#2E3644" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#E8EDF5" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#7A8799" />
+        <SolidColorBrush x:Key="TextMuted" Color="#414D5E" />
+
+        <!-- Typography -->
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+        </Style>
+
+        <Style x:Key="Value" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        </Style>
+
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+        </Style>
+
+        <!-- Card Style -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource BgCard}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+
+        <!-- Button Style -->
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource BgSurface}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="BtnBorder" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BtnBorder" Property="Background" Value="{StaticResource BgCardHover}" />
+                                <Setter TargetName="BtnBorder" Property="BorderBrush" Value="{StaticResource BorderStrong}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Toggle Button Style (matching MainWindow) -->
+        <Style x:Key="SwitchToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="{StaticResource BgBase}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Border}" />
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="FontFamily" Value="Consolas" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Border" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                                CornerRadius="4">
+                            <TextBlock x:Name="Text" Text="OFF" HorizontalAlignment="Center" 
+                                       VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="{StaticResource BgSurface}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Text" Property="Text" Value="ON"/>
+                                <Setter Property="Foreground" Value="{StaticResource AccentGreen}"/>
+                                <Setter Property="BorderBrush" Value="#1A5C34"/>
+                                <Setter Property="Background" Value="#0D2B1A"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Slider Style -->
+        <Style x:Key="ModernSlider" TargetType="Slider">
+            <Setter Property="Background" Value="{StaticResource Border}" />
+            <Setter Property="Foreground" Value="{StaticResource AccentGreen}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid>
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Background="{StaticResource AccentGreen}" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Background="{StaticResource TextPrimary}" Width="12" Height="20" />
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Background="{StaticResource Border}" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20">
+            <!-- Header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                <Rectangle Width="3" Height="20" Fill="{StaticResource AccentGreen}"
+                           RadiusX="1.5" RadiusY="1.5" Margin="0,0,10,0" VerticalAlignment="Center" />
+                <TextBlock Text="SETTINGS" Style="{StaticResource SectionHeader}"
+                           FontSize="16" VerticalAlignment="Center" />
+            </StackPanel>
+
+            <!-- Automation Status Card -->
+            <Border Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="AUTOMATION STATUS" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                        <TextBlock Text="{Binding AutomationStateText}" FontFamily="Consolas" FontSize="18" FontWeight="Bold">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsAutomationEnabled}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource AccentGreen}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <ToggleButton IsChecked="{Binding IsAutomationEnabled, Mode=TwoWay}" 
+                                      Style="{StaticResource SwitchToggleStyle}"
+                                      Width="80" Height="32" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Quick Settings Card -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Text="QUICK SETTINGS" Style="{StaticResource SectionHeader}" Margin="0,0,0,14" />
+
+                    <!-- Auto-Steering Toggle -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="AUTO-STEERING" Style="{StaticResource Label}" />
+                            <TextBlock Text="Enable automatic steering corrections" FontFamily="Segoe UI" FontSize="11"
+                                       Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <ToggleButton Grid.Column="1" IsChecked="{Binding IsAutoSteeringEnabled, Mode=TwoWay}"
+                                      Style="{StaticResource SwitchToggleStyle}" Width="70" Height="28" />
+                    </Grid>
+
+                    <Rectangle Fill="{StaticResource Border}" Height="1" Margin="0,8" />
+
+                    <!-- Steering Randomness Slider -->
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="80" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="STEERING RANDOMNESS" Style="{StaticResource Label}" />
+                            <TextBlock Text="{Binding SteeringRandomness, StringFormat='{}{0:F2}'}" 
+                                       FontFamily="Consolas" FontSize="14" FontWeight="Bold"
+                                       Foreground="{StaticResource AccentAmber}" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Slider Grid.Column="1" Minimum="0" Maximum="1" TickFrequency="0.1"
+                                Value="{Binding SteeringRandomness, Mode=TwoWay}" 
+                                VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </Grid>
+
+                    <Rectangle Fill="{StaticResource Border}" Height="1" Margin="0,8" />
+
+                    <!-- Max Throttle Slider -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="60" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="MAX THROTTLE %" Style="{StaticResource Label}" />
+                            <TextBlock Text="{Binding MaxThrottlePercent, StringFormat='{}{0:F0}%'}" 
+                                       FontFamily="Consolas" FontSize="14" FontWeight="Bold"
+                                       Foreground="{StaticResource AccentGreen}" Margin="0,4,0,0" />
+                        </StackPanel>
+                        <Slider Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5"
+                                Value="{Binding MaxThrottlePercent, Mode=TwoWay}" 
+                                VerticalAlignment="Center" Margin="8,0,0,0" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Hotkey Configuration Card -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="HOTKEY CONFIGURATION" Style="{StaticResource SectionHeader}" />
+                            <TextBlock Text="Configure keyboard shortcuts for automation features" 
+                                       FontFamily="Segoe UI" FontSize="10"
+                                       Foreground="{StaticResource TextMuted}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="RESTORE DEFAULTS" 
+                                Command="{Binding RestoreDefaultsCommand}"
+                                Style="{StaticResource ActionButton}"
+                                FontSize="9" Padding="10,5" />
+                    </Grid>
+
+                    <!-- Validation Message -->
+                    <Border x:Name="ValidationBorder" Visibility="Collapsed"
+                            Background="#1A2B3D" BorderBrush="#3A5F7D" BorderThickness="1"
+                            CornerRadius="4" Padding="10,8" Margin="0,0,0,14">
+                        <TextBlock Text="{Binding ValidationMessage}" 
+                                   FontFamily="Consolas" FontSize="10"
+                                   Foreground="{StaticResource AccentAmber}"
+                                   TextWrapping="Wrap" />
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasValidationMessage}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+
+                    <!-- Recording State Indicator -->
+                    <Border x:Name="RecordingBorder" Visibility="Collapsed"
+                            Background="#2D1A1A" BorderBrush="#5C2A2A" BorderThickness="1"
+                            CornerRadius="4" Padding="10,8" Margin="0,0,0,14">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="8" Height="8" Fill="{StaticResource AccentRed}" Margin="0,0,8,0" />
+                            <TextBlock Text="RECORDING HOTKEY... Press any key or Esc to cancel"
+                                       FontFamily="Consolas" FontSize="10"
+                                       Foreground="{StaticResource AccentRed}" />
+                        </StackPanel>
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRecording}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                    </Border>
+
+                    <!-- Hotkey List -->
+                    <ItemsControl ItemsSource="{Binding HotkeyBindings}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource BgSurface}" 
+                                        BorderBrush="{StaticResource Border}" 
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="12,10"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="200" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Feature Name -->
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayName}" 
+                                                       FontFamily="Segoe UI" FontSize="11"
+                                                       Foreground="{StaticResource TextPrimary}"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Id}" 
+                                                       FontFamily="Consolas" FontSize="9"
+                                                       Foreground="{StaticResource TextMuted}"
+                                                       Margin="0,2,0,0" />
+                                        </StackPanel>
+
+                                        <!-- Current Binding Display -->
+                                        <Border Grid.Column="1" 
+                                                Background="{StaticResource BgBase}"
+                                                BorderBrush="{StaticResource BorderStrong}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="10,6"
+                                                HorizontalAlignment="Stretch">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="BorderBrush" Value="{StaticResource BorderStrong}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                            <Setter Property="BorderBrush" Value="{StaticResource AccentRed}" />
+                                                            <Setter Property="Background" Value="#2D1A1A" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock>
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock" BasedOn="{StaticResource Label}">
+                                                        <Setter Property="Text" Value="{Binding DisplayString, RelativeSource={RelativeSource AncestorType=local:HotkeyBinding}}" />
+                                                        <Setter Property="Foreground" Value="{StaticResource TextSecondary}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                                <Setter Property="Text" Value="Press any key..." />
+                                                                <Setter Property="Foreground" Value="{StaticResource AccentRed}" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Border>
+
+                                        <!-- Record Button -->
+                                        <Button Grid.Column="2" Content="RECORD"
+                                                Command="{Binding DataContext.RecordHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource ActionButton}"
+                                                Padding="10,5"
+                                                Margin="0,0,6,0">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource ActionButton}">
+                                                    <Setter Property="IsEnabled" Value="True" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsRecording}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource AccentRed}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
+                                        <!-- Clear Button -->
+                                        <Button Grid.Column="3" Content="CLEAR"
+                                                Command="{Binding DataContext.ClearHotkeyCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource ActionButton}"
+                                                Padding="10,5" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Help Text -->
+            <TextBlock Margin="0,16,0,0" FontFamily="Segoe UI" FontSize="10"
+                       Foreground="{StaticResource TextMuted}" TextWrapping="Wrap">
+                <Run Text="Supported modifiers: Ctrl, Alt, Shift. Function keys (F1-F24) and Numpad keys are supported." />
+                <LineBreak />
+                <Run text="Hotkeys work globally, including when Forza Horizon 6 has focus." />
+            </TextBlock>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
